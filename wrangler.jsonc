@@ -1,0 +1,9 @@
+// Cloudflare Workers(정적 에셋) 배포 설정 — `npm run deploy` 또는 대시보드 Git 연동에서 사용
+{
+  "name": "terrawatt",
+  "compatibility_date": "2026-07-01",
+  "assets": {
+    "directory": "./dist",
+    "not_found_handling": "single-page-application"
+  }
+}
