@@ -290,6 +290,34 @@ function pvSnapshot(altitudeDeg: number, capacityKwp = BUGOK_CAPACITY_KWP) {
   };
 }
 
+/* 시뮬레이션 총 스텝 수 — 기간이 하루든 3개월이든 30스텝(30초)에 시각화 완료 */
+const SIM_TOTAL_STEPS = 30;
+/* 프리셋 기간(일) — 프리셋 버튼용 */
+const SIM_DAY_PRESETS: { days: number; label: string }[] = [
+  { days: 1, label: '하루' },
+  { days: 3, label: '3일' },
+  { days: 7, label: '1주' },
+  { days: 30, label: '1개월' },
+  { days: 60, label: '2개월' },
+  { days: 90, label: '3개월' },
+];
+
+/* 옥상 태양광 규격 (mock) — 근거를 노출하기 위해 패널 단위로 계산.
+   패널 1장 = 0.5 kWp / 설치 점유 2.5㎡(간격 포함) / 옥상 유효 설치율 75%.
+   → 실효 밀도 0.75 ÷ 2.5 × 0.5 = 0.15 kWp/㎡ (기존 값과 동일). */
+const PANEL_KWP = 0.5;
+const PANEL_AREA_M2 = 2.5;
+const ROOF_USABLE = 0.75;
+function roofSolar(areaM2: number, altitudeDeg: number) {
+  const panels = Math.floor((areaM2 * ROOF_USABLE) / PANEL_AREA_M2);
+  const capacityKwp = panels * PANEL_KWP;
+  return { panels, capacityKwp, powerKw: pvSnapshot(altitudeDeg, capacityKwp).powerKw };
+}
+/* 발전량(kW)만 필요할 때 (지도 색칠용) */
+function roofSolarKw(areaM2: number, altitudeDeg: number): number {
+  return roofSolar(areaM2, altitudeDeg).powerKw;
+}
+
 /* 클릭 지점 둘레 정사각형 건물 부지 (한 변 sizeM 미터) — 건물 세우기 모드용 */
 function buildingFootprint(lng: number, lat: number, sizeM = 20): number[][] {
   const dLat = sizeM / 2 / 111_320;
@@ -324,7 +352,43 @@ function circleRing(lng: number, lat: number, radiusM: number, steps = 48): numb
   return ring;
 }
 type BuildShape = 'rect' | 'circle';
-type UserBuilding = { ring: number[][]; height: number };
+// 건물 하나 = 한 편집 세션에 그린 여러 조각(rings). 완료 시 하나로 확정.
+type UserBuilding = { id: string; name: string; rings: number[][][]; height: number };
+
+/* 링(위경도) → 근사 넓이(m²) — shoelace 공식 + 위경도→미터 변환 */
+function ringAreaM2(ring: number[][]): number {
+  if (ring.length < 3) return 0;
+  const lat0 = ring[0][1];
+  const mPerLng = 111_320 * Math.cos((lat0 * Math.PI) / 180);
+  const mPerLat = 111_320;
+  const xy = ring.map(([lng, lat]) => [lng * mPerLng, lat * mPerLat]);
+  let a = 0;
+  for (let i = 0; i < xy.length - 1; i++) {
+    a += xy[i][0] * xy[i + 1][1] - xy[i + 1][0] * xy[i][1];
+  }
+  return Math.abs(a) / 2;
+}
+/* 짧은 고유 id — 클릭 시 어느 건물인지 식별 */
+const makeBuildingId = () => `b-${Date.now().toString(36)}-${Math.floor(Math.random() * 1e6).toString(36)}`;
+/* 링 중심점 [lng, lat] — 목록에서 이동·좌표 표시용 (마지막 중복점 제외 평균) */
+function ringCenter(ring: number[][]): [number, number] {
+  const pts = ring.slice(0, -1);
+  const [sx, sy] = pts.reduce(([ax, ay], [x, y]) => [ax + x, ay + y], [0, 0]);
+  return [sx / pts.length, sy / pts.length];
+}
+/* 건물(여러 조각) 집계: 총 바닥면적, 전체 중심, 중심 기준 확대/축소 */
+function buildingArea(rings: number[][][]): number {
+  return rings.reduce((s, r) => s + ringAreaM2(r), 0);
+}
+function buildingCenter(rings: number[][][]): [number, number] {
+  const cs = rings.map(ringCenter);
+  const [sx, sy] = cs.reduce(([ax, ay], [x, y]) => [ax + x, ay + y], [0, 0]);
+  return [sx / cs.length, sy / cs.length];
+}
+function scaleRings(rings: number[][][], factor: number): number[][][] {
+  const [cx, cy] = buildingCenter(rings);
+  return rings.map((r) => r.map(([x, y]) => [cx + (x - cx) * factor, cy + (y - cy) * factor]));
+}
 
 /* 태양 계산 기준점(발전소 위치) */
 const SUN_REF = { lat: HOME.lat, lng: HOME.lng };
@@ -897,10 +961,21 @@ export default function App() {
   const [buildMode, setBuildMode] = useState(false); // 건물 세우기 모드 (4단계)
   const buildModeRef = useRef(false); // 지도 클릭 핸들러가 최신값 참조
   const [buildHeight, setBuildHeight] = useState(25); // 새 건물 높이 (m)
-  const buildHeightRef = useRef(25);
   const [buildShape, setBuildShape] = useState<BuildShape>('rect'); // 부지 모양 (사각/원형)
   const buildShapeRef = useRef<BuildShape>('rect');
-  const [buildings, setBuildings] = useState<UserBuilding[]>([]); // 사용자가 세운 건물들
+  const [buildings, setBuildings] = useState<UserBuilding[]>([]); // 확정된 건물들
+  const buildingsRef = useRef<UserBuilding[]>([]); // 지도 클릭 핸들러가 최신 buildings 참조
+  const [buildName, setBuildName] = useState(''); // 편집 중 건물 이름 (비면 자동)
+  const [draftRings, setDraftRings] = useState<number[][][]>([]); // 편집 중 그린 조각들 (완료 시 하나로 확정)
+  const [draftRedo, setDraftRedo] = useState<number[][][]>([]); // 편집 중 되돌린 조각 (앞으로 되살리기)
+  const [selectedUserBldg, setSelectedUserBldg] = useState<UserBuilding | null>(null); // 클릭한 건물 상세
+  const [simOn, setSimOn] = useState(false); // 옥상 태양광 시뮬레이션 모드 진입
+  const [simDays, setSimDays] = useState(1); // 시뮬 기간(일수) — 오늘부터 N일
+  const [simPlaying, setSimPlaying] = useState(false); // 재생 중
+  const [simCurrentStep, setSimCurrentStep] = useState(0); // 재생 스텝 (0 ~ SIM_TOTAL_STEPS-1)
+  const [simSelected, setSimSelected] = useState<Set<string>>(new Set()); // 시뮬 대상으로 선택된 건물 id들
+  const [sizePct, setSizePct] = useState(100); // 선택 건물 크기 배율 (%) — 상세에서 조절
+  const sizeBaseRef = useRef<{ id: string; rings: number[][][] } | null>(null); // 배율 기준 원본(누적 방지)
   const outlineTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [hour, setHour] = useState(() => {
     const n = new Date();
@@ -979,18 +1054,38 @@ export default function App() {
         ring = circleRing(
           start.lngLat.lng,
           start.lngLat.lat,
-          dragPx < 6 ? 10 : Math.max(2, radiusM(start.lngLat, e.lngLat)), // 클릭 = 반지름 10m
+          dragPx < 6 ? 10 : Math.max(2, radiusM(start.lngLat, e.lngLat)),
         );
       } else {
         ring = dragPx < 6
-          ? buildingFootprint(e.lngLat.lng, e.lngLat.lat) // 클릭 = 기본 20m 부지
+          ? buildingFootprint(e.lngLat.lng, e.lngLat.lat)
           : rectRing(start.lngLat, e.lngLat);
       }
-      setBuildings((prev) => [...prev, { ring, height: buildHeightRef.current }]);
+      // 조각을 draft에 추가 (아직 건물 아님 — 완료 시 하나로 확정)
+      setDraftRings((prev) => [...prev, ring]);
+      setDraftRedo([]);
     };
     map.on('mousedown', onBuildDown);
     map.on('mousemove', onBuildMove);
     map.on('mouseup', onBuildUp);
+
+    // 건물 클릭 → 상세 표시 (배치 모드 OFF + 4단계일 때만). 배치 모드 중 클릭은 새 건물용
+    const onBldgClick = (e: mapboxgl.MapMouseEvent & { features?: mapboxgl.MapboxGeoJSONFeature[] }) => {
+      if (buildModeRef.current || depthRef.current !== 'dong') return;
+      const id = e.features?.[0]?.properties?.id as string | undefined;
+      if (!id) return;
+      const b = buildingsRef.current.find((x) => x.id === id);
+      if (b) setSelectedUserBldg(b);
+    };
+    const onBldgEnter = () => {
+      if (!buildModeRef.current) map.getCanvas().style.cursor = 'pointer';
+    };
+    const onBldgLeave = () => {
+      if (!buildModeRef.current) map.getCanvas().style.cursor = '';
+    };
+    map.on('click', 'user-buildings-3d', onBldgClick);
+    map.on('mouseenter', 'user-buildings-3d', onBldgEnter);
+    map.on('mouseleave', 'user-buildings-3d', onBldgLeave);
 
     let flowRaf = 0; // 송전망 흐름 애니메이션 프레임 id
 
@@ -1057,7 +1152,22 @@ export default function App() {
           type: 'fill-extrusion',
           source: 'user-buildings',
           paint: {
-            'fill-extrusion-color': '#38bdf8',
+            // 선택된 건물=빨강 강조(우선), 아니면 power로 색칠(없으면 하늘색)
+            'fill-extrusion-color': [
+              'case',
+              ['==', ['get', 'selected'], true],
+              '#ef4444', // 선택 = 빨강
+              [
+                'interpolate',
+                ['linear'],
+                ['coalesce', ['get', 'power'], -1],
+                -1, '#38bdf8', // 시뮬 OFF → 기본 하늘색
+                0, '#334155', // 순간 kW=0 (야간·저고도) → 회색
+                15, '#fbbf24', // 앰버 (저출력)
+                40, '#f97316', // 주황
+                80, '#ea580c', // 진한 주황 (정오급)
+              ],
+            ],
             'fill-extrusion-base': 0,
             'fill-extrusion-height': ['get', 'height'],
             'fill-extrusion-opacity': 0.85,
@@ -1076,6 +1186,19 @@ export default function App() {
           type: 'line',
           source: 'build-preview',
           paint: { 'line-color': '#7dd3fc', 'line-width': 2, 'line-dasharray': [2, 1.5] },
+        });
+        // 편집 중 조각(draft) — 완료 전이라 별색(청록)·반투명으로 "아직 확정 안 됨" 표시
+        map.addSource('build-draft', { type: 'geojson', data: { type: 'FeatureCollection', features: [] } });
+        map.addLayer({
+          id: 'build-draft-3d',
+          type: 'fill-extrusion',
+          source: 'build-draft',
+          paint: {
+            'fill-extrusion-color': '#22d3ee',
+            'fill-extrusion-base': 0,
+            'fill-extrusion-height': ['get', 'height'],
+            'fill-extrusion-opacity': 0.6,
+          },
         });
       }
 
@@ -1407,6 +1530,9 @@ export default function App() {
       map.off('mousedown', onBuildDown);
       map.off('mousemove', onBuildMove);
       map.off('mouseup', onBuildUp);
+      map.off('click', 'user-buildings-3d', onBldgClick);
+      map.off('mouseenter', 'user-buildings-3d', onBldgEnter);
+      map.off('mouseleave', 'user-buildings-3d', onBldgLeave);
       window.removeEventListener('resize', safeResize);
       ro.disconnect();
       map.remove();
@@ -1469,19 +1595,64 @@ export default function App() {
     if (status === 'ready') threeRef.current?.setPanelAngle(panelAzimuth, panelTilt);
   }, [panelAzimuth, panelTilt, status]);
 
-  /* 건물 세우기: 배치 목록 → 지도 소스 반영 */
+  /* 건물 세우기: 배치 목록 → 지도 소스 반영. 시뮬 ON이면 현재 스텝의 순간 kW로 색칠 */
   useEffect(() => {
     const map = mapRef.current;
     if (!map || status !== 'ready') return;
+    const selId = selectedUserBldg?.id;
+    // 현재 스텝의 실제 시각 = 오늘부터 (step × stepHours) 만큼 지난 시점
+    const stepHours = (simDays * 24) / SIM_TOTAL_STEPS;
+    const now = new Date();
+    const nowAtPlayback = new Date(now.getTime() + simCurrentStep * stepHours * 3600_000);
+    const altAtPlayback = simOn
+      ? SunCalc.getPosition(nowAtPlayback, SUN_REF.lat, SUN_REF.lng).altitude
+      : 0;
     (map.getSource('user-buildings') as mapboxgl.GeoJSONSource | undefined)?.setData({
       type: 'FeatureCollection',
-      features: buildings.map((b) => ({
-        type: 'Feature',
-        properties: { height: b.height },
-        geometry: { type: 'Polygon', coordinates: [b.ring] },
+      features: buildings.map((b) => {
+        const props: Record<string, unknown> = {
+          height: b.height,
+          id: b.id,
+          name: b.name,
+          selected: b.id === selId,
+        };
+        if (simOn && simSelected.has(b.id)) {
+          props.power = roofSolarKw(buildingArea(b.rings), altAtPlayback);
+        }
+        return {
+          type: 'Feature' as const,
+          properties: props,
+          geometry: { type: 'MultiPolygon' as const, coordinates: b.rings.map((r) => [r]) },
+        };
+      }),
+    });
+  }, [buildings, status, simOn, simCurrentStep, simDays, simSelected, selectedUserBldg?.id]);
+
+  /* 편집 중 조각(draft) → 지도에 미리 표시 (완료 전) */
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map || status !== 'ready') return;
+    (map.getSource('build-draft') as mapboxgl.GeoJSONSource | undefined)?.setData({
+      type: 'FeatureCollection',
+      features: draftRings.map((r) => ({
+        type: 'Feature' as const,
+        properties: { height: buildHeight },
+        geometry: { type: 'Polygon' as const, coordinates: [r] },
       })),
     });
-  }, [buildings, status]);
+  }, [draftRings, buildHeight, status]);
+
+  /* 완료 = 그린 조각들을 건물 하나로 확정 + 편집 종료 */
+  const finishBuilding = () => {
+    if (draftRings.length > 0) {
+      const name = buildName.trim() || `건물 ${buildings.length + 1}`;
+      setBuildings((prev) => [...prev, { id: makeBuildingId(), name, rings: draftRings, height: buildHeight }]);
+      setBuildName('');
+    }
+    setDraftRings([]);
+    setDraftRedo([]);
+    setBuildMode(false);
+  };
 
   /* 건물 세우기 모드 → 핸들러 ref + 커서 + 지도 끌기 잠금(드래그=부지 그리기가 되도록) */
   useEffect(() => {
@@ -1503,12 +1674,65 @@ export default function App() {
   useEffect(() => {
     buildShapeRef.current = buildShape;
   }, [buildShape]);
+  /* 시뮬 재생: 1초 = 1스텝. 마지막 스텝 도달 시 자동 정지. 기간 상관없이 총 30초에 완료 */
   useEffect(() => {
-    buildHeightRef.current = buildHeight;
-  }, [buildHeight]);
-  /* 4단계를 벗어나면 건물 세우기 모드 자동 해제 */
+    if (!simPlaying) return;
+    const id = setInterval(() => {
+      setSimCurrentStep((s) => {
+        const next = s + 1;
+        if (next >= SIM_TOTAL_STEPS - 1) {
+          setSimPlaying(false);
+          return SIM_TOTAL_STEPS - 1;
+        }
+        return next;
+      });
+    }, 1000);
+    return () => clearInterval(id);
+  }, [simPlaying]);
+  /* 시뮬 모드 진입 or 기간 변경 시 재생 위치 초기화 */
   useEffect(() => {
-    if (depth !== 'dong') setBuildMode(false);
+    setSimCurrentStep(0);
+    setSimPlaying(false);
+  }, [simOn, simDays]);
+  /* 시뮬 대상 선택 동기화 — 진입 시 전체 선택, 새 건물은 자동 포함, 삭제된 건물은 제거 */
+  useEffect(() => {
+    if (!simOn) return;
+    setSimSelected((prev) => {
+      const validIds = new Set(buildings.map((b) => b.id));
+      const next = new Set<string>();
+      // 첫 진입(prev 비어 있음)이면 전체 선택
+      if (prev.size === 0) {
+        for (const b of buildings) next.add(b.id);
+        return next;
+      }
+      // 기존에 선택된 것 중 아직 존재하는 것만 유지 + 새 건물 자동 포함
+      for (const id of prev) if (validIds.has(id)) next.add(id);
+      for (const b of buildings) if (!prev.has(b.id)) next.add(b.id);
+      return next;
+    });
+  }, [simOn, buildings]);
+  /* buildings 배열 → ref 동기화 (지도 클릭 핸들러가 최신 목록 참조) */
+  useEffect(() => {
+    buildingsRef.current = buildings;
+  }, [buildings]);
+  /* 선택 건물이 바뀌면 크기 배율 100%로 리셋 + 기준 링 캡처 (배율 누적 방지) */
+  useEffect(() => {
+    setSizePct(100);
+    sizeBaseRef.current = selectedUserBldg
+      ? { id: selectedUserBldg.id, rings: selectedUserBldg.rings }
+      : null;
+    // id만 의존 — 스케일 중 rings가 바뀌어도 기준은 고정
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedUserBldg?.id]);
+  /* 4단계를 벗어나면 건물 세우기 모드·상세 카드 자동 해제 */
+  useEffect(() => {
+    if (depth !== 'dong') {
+      setBuildMode(false);
+      setSelectedUserBldg(null);
+      setSimOn(false);
+      setDraftRings([]);
+      setDraftRedo([]);
+    }
   }, [depth]);
 
   /* 날씨(맑음/비/눈) 몰입 효과 — 상세(3·4단계)에서만. 광역(1·2)에선 항상 해제 */
@@ -1661,6 +1885,30 @@ export default function App() {
       duration: 2200,
       essential: true,
     });
+  };
+
+  /* 세운 건물로 이동 + 상세 선택 (발전소 이동과 동일한 카메라) */
+  const goToBuilding = (b: UserBuilding) => {
+    const [lng, lat] = buildingCenter(b.rings);
+    setSelectedUserBldg(b);
+    mapRef.current?.flyTo({
+      center: [lng, lat],
+      zoom: 17,
+      pitch: 60,
+      bearing: -20,
+      duration: 1800,
+      essential: true,
+    });
+  };
+  /* 건물 속성 수정 (이름·높이) — id로 찾아 갱신, 상세 카드도 동기화 */
+  const updateBuilding = (id: string, patch: Partial<UserBuilding>) => {
+    setBuildings((prev) => prev.map((b) => (b.id === id ? { ...b, ...patch } : b)));
+    setSelectedUserBldg((cur) => (cur && cur.id === id ? { ...cur, ...patch } : cur));
+  };
+  /* 건물 삭제 */
+  const deleteBuilding = (id: string) => {
+    setBuildings((prev) => prev.filter((b) => b.id !== id));
+    setSelectedUserBldg((cur) => (cur && cur.id === id ? null : cur));
   };
 
   /* 목록으로 = 선택 해제 + 전체 뷰로 살짝 줌아웃 */
@@ -1944,12 +2192,14 @@ export default function App() {
               <div
                 className="pointer-events-none fixed inset-0 z-30"
                 style={{
-                  boxShadow: 'inset 0 0 180px 60px rgba(248, 113, 113, 0.28)',
-                  animation: 'terrawatt-alert-glow 2.4s ease-in-out infinite',
+                  // 두 겹의 그림자 (red-500 톤) — 은은한 붉은 발광
+                  boxShadow:
+                    'inset 0 0 200px 80px rgba(239, 68, 68, 0.32), inset 0 0 90px 30px rgba(239, 68, 68, 0.18)',
+                  animation: 'terrawatt-alert-glow 2s ease-in-out infinite',
                 }}
               />
               <style>{`@keyframes terrawatt-alert-glow {
-                0%, 100% { opacity: 0.7; }
+                0%, 100% { opacity: 0.75; }
                 50% { opacity: 1; }
               }`}</style>
               {/* 상단 전체 가로 알림 — 반투명 유리 위 정보성 텍스트 */}
@@ -2145,6 +2395,118 @@ export default function App() {
                   🎯 이 위치로 이동
                 </button>
               </div>
+            ) : selectedUserBldg ? (
+              /* 세운 건물 상세 — 수정(이름·높이) + 삭제 */
+              (() => {
+                const b = selectedUserBldg;
+                const area = buildingArea(b.rings);
+                const [cx, cy] = buildingCenter(b.rings);
+                return (
+                  <div>
+                    <button
+                      type="button"
+                      onClick={() => setSelectedUserBldg(null)}
+                      className="mb-3 flex items-center gap-1 text-xs font-semibold text-slate-300 transition-colors hover:text-white"
+                    >
+                      ← 목록으로
+                    </button>
+                    <div className="flex items-center gap-2">
+                      <span className="h-3.5 w-3.5 shrink-0 rounded-sm border-2 border-white bg-sky-500 shadow-[0_0_10px_2px_#38bdf899]" />
+                      <div className="text-[10px] font-semibold uppercase tracking-wider text-sky-300">
+                        내가 세운 건물
+                      </div>
+                    </div>
+                    {/* 이름 수정 */}
+                    <input
+                      type="text"
+                      value={b.name}
+                      onChange={(e) => updateBuilding(b.id, { name: e.target.value })}
+                      className="mt-1.5 w-full rounded bg-white/10 px-2 py-1.5 text-base font-bold text-white outline-none focus:bg-white/15"
+                    />
+                    <div className="mt-3 grid grid-cols-2 gap-y-1.5 text-xs">
+                      <div className="text-slate-400">🏢 바닥면적</div>
+                      <div className="text-right font-mono text-white">{area.toFixed(0)} m²</div>
+                      <div className="text-slate-400">📦 체적</div>
+                      <div className="text-right font-mono text-white">{(area * b.height).toFixed(0)} m³</div>
+                      <div className="text-slate-400">🧭 좌표</div>
+                      <div className="text-right font-mono text-[10px] text-slate-300">
+                        {cy.toFixed(4)}, {cx.toFixed(4)}
+                      </div>
+                    </div>
+                    {/* 크기 수정 — 중심 기준 확대/축소 (기준 링에 배율 적용) */}
+                    <div className="mt-3">
+                      <div className="mb-1 flex items-center justify-between text-xs">
+                        <span className="text-slate-400">↔ 크기 수정</span>
+                        <span className="font-mono text-sky-300">{sizePct}%</span>
+                      </div>
+                      <Slider
+                        min={30}
+                        max={300}
+                        step={5}
+                        value={[sizePct]}
+                        onValueChange={(v) => {
+                          const pct = v[0];
+                          setSizePct(pct);
+                          const base = sizeBaseRef.current;
+                          if (base && base.id === b.id) {
+                            updateBuilding(b.id, { rings: scaleRings(base.rings, pct / 100) });
+                          }
+                        }}
+                      />
+                    </div>
+                    {/* 높이 수정 */}
+                    <div className="mt-3">
+                      <div className="mb-1 flex items-center justify-between text-xs">
+                        <span className="text-slate-400">📐 높이 수정</span>
+                        <span className="font-mono text-sky-300">{b.height}m</span>
+                      </div>
+                      <Slider
+                        min={10}
+                        max={100}
+                        step={5}
+                        value={[b.height]}
+                        onValueChange={(v) => updateBuilding(b.id, { height: v[0] })}
+                      />
+                    </div>
+                    {/* 옥상 태양광 잠재량 — 패널 규격 근거까지 노출 */}
+                    {(() => {
+                      const rs = roofSolar(area, sunAltDeg);
+                      return (
+                        <div className="mt-3 rounded-lg border border-amber-400/20 bg-amber-500/5 p-2.5 text-xs">
+                          <div className="mb-1.5 flex items-center justify-between">
+                            <span className="font-bold text-amber-300">☀ 옥상 태양광</span>
+                            <span className="font-mono font-bold text-amber-200">
+                              {rs.powerKw.toFixed(0)} kW
+                            </span>
+                          </div>
+                          <div className="grid grid-cols-2 gap-y-0.5 text-[11px]">
+                            <span className="text-slate-400">패널</span>
+                            <span className="text-right font-mono text-slate-200">{rs.panels}장</span>
+                            <span className="text-slate-400">설치 용량</span>
+                            <span className="text-right font-mono text-slate-200">{rs.capacityKwp.toFixed(1)} kWp</span>
+                          </div>
+                        </div>
+                      );
+                    })()}
+                    <div className="mt-3 flex gap-2">
+                      <button
+                        type="button"
+                        onClick={() => goToBuilding(b)}
+                        className="flex-1 rounded-md bg-blue-600 px-2 py-2 text-xs font-semibold text-white transition-colors hover:bg-blue-700"
+                      >
+                        🎯 이동
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => deleteBuilding(b.id)}
+                        className="flex-1 rounded-md bg-red-500/80 px-2 py-2 text-xs font-semibold text-white transition-colors hover:bg-red-500"
+                      >
+                        🗑 삭제
+                      </button>
+                    </div>
+                  </div>
+                );
+              })()
             ) : (
               /* 목록 뷰 */
               <div>
@@ -2165,6 +2527,501 @@ export default function App() {
                     </button>
                   ))}
                 </div>
+
+                {/* 건물 세우기 — 4단계에서만. 발전소 바로가기 바로 아래(건물 관리와 같은 패널) */}
+                {depth === 'dong' && (
+                  <div className="mt-3 border-t border-white/10 pt-3">
+                    {!buildMode ? (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setSimOn(false); // 그릴 땐 색 초기화(하늘색)
+                          setDraftRings([]); // 새 편집 세션 시작
+                          setDraftRedo([]);
+                          setBuildMode(true);
+                        }}
+                        className="flex w-full items-center justify-center gap-1.5 rounded-lg bg-sky-500 px-3 py-2 text-[12px] font-bold text-white transition-colors hover:bg-sky-400"
+                      >
+                        🏗 건물 세우기
+                      </button>
+                    ) : (
+                      <div className="flex flex-col gap-2 text-[12px] text-slate-200">
+                        {/* 편집 중 헤더 — 완료 버튼으로 모드에서 빠져나감 */}
+                        <div className="flex items-center justify-between">
+                          <span className="flex items-center gap-1.5 text-xs font-bold tracking-wide text-sky-300">
+                            <span className="inline-block h-1.5 w-1.5 animate-pulse rounded-full bg-sky-400" />
+                            건물 세우는 중
+                          </span>
+                          <button
+                            type="button"
+                            onClick={finishBuilding}
+                            disabled={draftRings.length === 0}
+                            className="rounded bg-sky-500 px-2.5 py-1 text-[11px] font-bold text-white transition-colors hover:bg-sky-400 disabled:cursor-not-allowed disabled:bg-white/10 disabled:text-slate-400"
+                          >
+                            ✓ 완료
+                          </button>
+                        </div>
+                        {/* 부지 모양 선택 */}
+                        <div className="flex gap-1">
+                          {([
+                            { k: 'rect', label: '⬛ 사각' },
+                            { k: 'circle', label: '⚫ 원형' },
+                          ] as const).map((s) => (
+                            <button
+                              key={s.k}
+                              type="button"
+                              onClick={() => setBuildShape(s.k)}
+                              className={`flex-1 rounded px-1.5 py-1 text-[11px] font-semibold transition-colors ${
+                                buildShape === s.k
+                                  ? 'bg-sky-500 text-white'
+                                  : 'bg-white/10 text-slate-300 hover:bg-white/20'
+                              }`}
+                            >
+                              {s.label}
+                            </button>
+                          ))}
+                        </div>
+                        <div className="text-[10px] text-sky-300">
+                          {buildShape === 'rect'
+                            ? '드래그 = 크기 그리기 · 클릭 = 기본 20m'
+                            : '드래그 = 반지름 · 클릭 = 기본 10m'}
+                          <br />
+                          <span className="text-slate-400">여러 조각을 그린 뒤 ✓완료 = 건물 하나로 확정</span>
+                          <br />
+                          <span className="text-slate-500">(모드 중 지도 이동 잠김 — 스크롤 줌은 가능)</span>
+                        </div>
+                        {/* 이름 입력 — 비면 "건물 N" 자동 */}
+                        <div className="flex flex-col gap-1">
+                          <span className="text-[11px] text-slate-400">이름 (비우면 자동)</span>
+                          <input
+                            type="text"
+                            value={buildName}
+                            onChange={(e) => setBuildName(e.target.value)}
+                            placeholder={`건물 ${buildings.length + 1}`}
+                            className="rounded bg-white/10 px-2 py-1 text-[12px] text-white placeholder-slate-500 outline-none focus:bg-white/15"
+                          />
+                        </div>
+                        <div className="flex items-center justify-between gap-2">
+                          <span>높이</span>
+                          <span className="font-mono text-[11px] text-sky-300">{buildHeight}m</span>
+                        </div>
+                        <Slider
+                          min={10}
+                          max={100}
+                          step={5}
+                          value={[buildHeight]}
+                          onValueChange={(v) => setBuildHeight(v[0])}
+                        />
+                        {(draftRings.length > 0 || draftRedo.length > 0) && (
+                          <div className="flex items-center justify-between gap-2 text-[11px]">
+                            <span className="text-slate-400">
+                              {draftRings.length}조각 그림
+                              {draftRedo.length > 0 && (
+                                <span className="ml-1 text-slate-500">· 되돌린 {draftRedo.length}</span>
+                              )}
+                            </span>
+                            <div className="flex gap-1">
+                              <button
+                                type="button"
+                                disabled={draftRings.length === 0}
+                                onClick={() => {
+                                  setDraftRings((prev) => {
+                                    if (prev.length === 0) return prev;
+                                    setDraftRedo((r) => [...r, prev[prev.length - 1]]);
+                                    return prev.slice(0, -1);
+                                  });
+                                }}
+                                title="뒤로 (마지막 조각 취소)"
+                                className="flex h-6 w-6 items-center justify-center rounded bg-white/10 text-sm transition-colors hover:bg-white/20 disabled:cursor-not-allowed disabled:opacity-40"
+                              >
+                                ↩
+                              </button>
+                              <button
+                                type="button"
+                                disabled={draftRedo.length === 0}
+                                onClick={() => {
+                                  setDraftRedo((r) => {
+                                    if (r.length === 0) return r;
+                                    setDraftRings((prev) => [...prev, r[r.length - 1]]);
+                                    return r.slice(0, -1);
+                                  });
+                                }}
+                                title="앞으로 (되돌린 조각 되살리기)"
+                                className="flex h-6 w-6 items-center justify-center rounded bg-white/10 text-sm transition-colors hover:bg-white/20 disabled:cursor-not-allowed disabled:opacity-40"
+                              >
+                                ↪
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setDraftRings([]);
+                                  setDraftRedo([]);
+                                }}
+                                title="그린 조각 전부 지우기"
+                                className="flex h-6 w-6 items-center justify-center rounded bg-white/10 text-sm transition-colors hover:bg-white/20"
+                              >
+                                🗑
+                              </button>
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {/* 내가 세운 건물 — 시뮬레이션 재생 통합 (기간 = 오늘부터 N일) */}
+                {buildings.length > 0 && (() => {
+                  const pad = (n: number) => String(n).padStart(2, '0');
+                  // 스텝 → 실제 시각. 스텝 크기 = (일수 × 24) / 총 스텝 시간
+                  const stepHours = (simDays * 24) / SIM_TOTAL_STEPS;
+                  const now = new Date();
+                  const stepDate = (step: number) => new Date(now.getTime() + step * stepHours * 3600_000);
+                  const currentDate = stepDate(simCurrentStep);
+                  const endDate = stepDate(SIM_TOTAL_STEPS - 1);
+                  const atStart = simCurrentStep === 0;
+                  const atEnd = simCurrentStep >= SIM_TOTAL_STEPS - 1;
+                  // 표시: 짧은 기간(≤3일)은 시각까지, 긴 기간은 날짜만
+                  const fmtDate = (d: Date) =>
+                    simDays <= 3
+                      ? `${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}시`
+                      : `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+                  // 건물별 순간 kW (현재 스텝) + 누적 kWh (0~현재 스텝의 kW×stepHours 합)
+                  const perBuilding = simOn
+                    ? buildings.map((b) => {
+                        const area = buildingArea(b.rings);
+                        const altNow = SunCalc.getPosition(currentDate, SUN_REF.lat, SUN_REF.lng).altitude;
+                        const kwNow = roofSolarKw(area, altNow);
+                        let kwhSoFar = 0;
+                        for (let i = 0; i <= simCurrentStep; i++) {
+                          const alt = SunCalc.getPosition(stepDate(i), SUN_REF.lat, SUN_REF.lng).altitude;
+                          kwhSoFar += roofSolarKw(area, alt) * stepHours;
+                        }
+                        return { id: b.id, name: b.name, area, kwNow, kwhSoFar, selected: simSelected.has(b.id) };
+                      })
+                    : [];
+                  const selectedRows = perBuilding.filter((r) => r.selected);
+                  const totalKwhSoFar = selectedRows.reduce((s, r) => s + r.kwhSoFar, 0);
+                  const totalKwNow = selectedRows.reduce((s, r) => s + r.kwNow, 0);
+                  const allSelected = simSelected.size === buildings.length && buildings.length > 0;
+                  const toggleAll = () => {
+                    if (allSelected) setSimSelected(new Set());
+                    else setSimSelected(new Set(buildings.map((b) => b.id)));
+                  };
+                  const toggleOne = (id: string) => {
+                    setSimSelected((prev) => {
+                      const next = new Set(prev);
+                      if (next.has(id)) next.delete(id);
+                      else next.add(id);
+                      return next;
+                    });
+                  };
+
+                  return (
+                    <div className="mt-3 border-t border-white/10 pt-3">
+                      <div className="mb-2 flex items-center justify-between">
+                        <span className="text-xs font-semibold text-slate-300">
+                          🏗 내가 세운 건물 <span className="text-slate-500">{buildings.length}동</span>
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() => setSimOn((v) => !v)}
+                          className={`rounded px-2 py-0.5 text-[11px] font-bold transition-colors ${
+                            simOn
+                              ? 'bg-white/10 text-slate-300 hover:bg-white/20'
+                              : 'bg-amber-500 text-white hover:bg-amber-400'
+                          }`}
+                          title={simOn ? '시뮬레이션 모드 종료' : '옥상 태양광 시뮬레이션 열기'}
+                        >
+                          {simOn ? '× 시뮬 닫기' : '☀ 시뮬레이션'}
+                        </button>
+                      </div>
+
+                      {/* 시뮬 모드 UI (대상 선택 → 시간대 → 재생 컨트롤 → 진행 바) */}
+                      {simOn && (
+                        <div className="mb-2 rounded-lg border border-amber-400/30 bg-amber-500/5 p-2.5">
+                          {/* 시뮬 대상 선택 상태 + 전체 토글 */}
+                          <div className="mb-2 flex items-center justify-between text-[11px]">
+                            <span className="text-slate-400">
+                              시뮬 대상 <span className="font-mono text-amber-300">{simSelected.size}/{buildings.length}</span> 선택
+                            </span>
+                            <button
+                              type="button"
+                              onClick={toggleAll}
+                              disabled={simPlaying}
+                              className="rounded bg-white/10 px-2 py-0.5 text-[10px] font-semibold text-slate-200 transition-colors hover:bg-white/20 disabled:cursor-not-allowed disabled:opacity-40"
+                            >
+                              {allSelected ? '전체 해제' : '전체 선택'}
+                            </button>
+                          </div>
+                          {/* 기간 프리셋 + 커스텀 슬라이더 — 재생 중엔 잠금 */}
+                          <div className="mb-2">
+                            <div className="mb-1 flex items-center justify-between text-[11px]">
+                              <span className="text-slate-400">기간</span>
+                              <span className="font-mono text-amber-300">
+                                오늘 ~ {fmtDate(endDate)} · {simDays}일
+                              </span>
+                            </div>
+                            <div className="mb-1.5 flex flex-wrap gap-1">
+                              {SIM_DAY_PRESETS.map((p) => (
+                                <button
+                                  key={p.days}
+                                  type="button"
+                                  onClick={() => setSimDays(p.days)}
+                                  disabled={simPlaying}
+                                  className={`rounded px-2 py-0.5 text-[10px] font-semibold transition-colors disabled:cursor-not-allowed disabled:opacity-40 ${
+                                    simDays === p.days
+                                      ? 'bg-amber-500 text-white'
+                                      : 'bg-white/10 text-slate-200 hover:bg-white/20'
+                                  }`}
+                                >
+                                  {p.label}
+                                </button>
+                              ))}
+                            </div>
+                            <Slider
+                              min={1}
+                              max={90}
+                              step={1}
+                              value={[simDays]}
+                              disabled={simPlaying}
+                              onValueChange={(v) => setSimDays(v[0])}
+                            />
+                            <div className="flex justify-between text-[9px] text-slate-500">
+                              <span>1일</span>
+                              <span>45일</span>
+                              <span>90일</span>
+                            </div>
+                          </div>
+
+                          {/* 재생 컨트롤 + 현재 날짜/시각 */}
+                          <div className="mb-1.5 flex items-center gap-2">
+                            <button
+                              type="button"
+                              onClick={() => {
+                                if (atEnd) setSimCurrentStep(0);
+                                setSimPlaying(true);
+                              }}
+                              disabled={simPlaying}
+                              title={atEnd ? '처음부터 다시 재생' : '재생'}
+                              className="flex h-7 w-7 items-center justify-center rounded-full bg-emerald-500 text-white transition-colors hover:bg-emerald-400 disabled:cursor-not-allowed disabled:bg-white/10 disabled:text-slate-500"
+                            >
+                              ▶
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => setSimPlaying(false)}
+                              disabled={!simPlaying}
+                              title="일시정지"
+                              className="flex h-7 w-7 items-center justify-center rounded-full bg-amber-500 text-white transition-colors hover:bg-amber-400 disabled:cursor-not-allowed disabled:bg-white/10 disabled:text-slate-500"
+                            >
+                              ⏸
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setSimPlaying(false);
+                                setSimCurrentStep(0);
+                              }}
+                              disabled={atStart && !simPlaying}
+                              title="처음으로"
+                              className="flex h-7 w-7 items-center justify-center rounded-full bg-slate-600 text-white transition-colors hover:bg-slate-500 disabled:cursor-not-allowed disabled:bg-white/10 disabled:text-slate-500"
+                            >
+                              ⏮
+                            </button>
+                            <div className="ml-auto text-right">
+                              <div className="font-mono text-sm font-bold leading-tight text-amber-300">
+                                {fmtDate(currentDate)}
+                              </div>
+                              <div className="text-[9px] text-slate-500">
+                                {simPlaying
+                                  ? `● 재생 중 (${simDays}일을 30초에)`
+                                  : atEnd
+                                  ? '완료'
+                                  : atStart
+                                  ? '대기 중'
+                                  : '일시정지'}
+                              </div>
+                            </div>
+                          </div>
+
+                          {/* 진행 바 */}
+                          <div className="h-1.5 overflow-hidden rounded-full bg-white/10">
+                            <div
+                              className="h-full rounded-full bg-gradient-to-r from-amber-400 to-orange-500 transition-all duration-500"
+                              style={{
+                                width: `${(simCurrentStep / (SIM_TOTAL_STEPS - 1)) * 100}%`,
+                              }}
+                            />
+                          </div>
+                        </div>
+                      )}
+
+                      {/* 건물 리스트 — 시뮬 ON이면 행 앞에 체크박스, 미선택은 회색 처리 */}
+                      <div className="flex max-h-52 flex-col gap-1 overflow-y-auto">
+                        {buildings.map((b) => {
+                          const row = perBuilding.find((r) => r.id === b.id);
+                          const isSelected = simOn ? simSelected.has(b.id) : false;
+                          return (
+                            <div
+                              key={b.id}
+                              className={`flex items-center gap-2 rounded-md pl-1 pr-2 py-1.5 text-sm transition-colors ${
+                                simOn && !isSelected ? 'opacity-40' : ''
+                              }`}
+                            >
+                              {/* 시뮬 ON일 때만 체크박스 — 재생 중엔 잠금 */}
+                              {simOn && (
+                                <input
+                                  type="checkbox"
+                                  checked={isSelected}
+                                  disabled={simPlaying}
+                                  onChange={() => toggleOne(b.id)}
+                                  onClick={(e) => e.stopPropagation()}
+                                  title={isSelected ? '시뮬 대상에서 제외' : '시뮬 대상에 포함'}
+                                  className="h-3.5 w-3.5 shrink-0 cursor-pointer accent-amber-500 disabled:cursor-not-allowed"
+                                />
+                              )}
+                              <button
+                                type="button"
+                                onClick={() => goToBuilding(b)}
+                                className="flex flex-1 items-center gap-2 rounded px-1 py-0.5 text-left text-white transition-colors hover:bg-white/10"
+                              >
+                                <span className="h-2.5 w-2.5 shrink-0 rounded-sm border border-white bg-sky-500" />
+                                <span className="flex flex-1 flex-col overflow-hidden">
+                                  <span className="truncate font-semibold text-[13px]">{b.name}</span>
+                                  <span className="text-[10px] text-slate-400">
+                                    {buildingArea(b.rings).toFixed(0)}㎡ · {b.rings.length}조각 · 높이 {b.height}m
+                                  </span>
+                                </span>
+                                {simOn && row && isSelected ? (
+                                  <span className="flex shrink-0 flex-col items-end">
+                                    <span className="font-mono text-[11px] font-bold text-amber-300">
+                                      {row.kwNow.toFixed(0)} kW
+                                    </span>
+                                    <span className="font-mono text-[9px] text-slate-400">
+                                      누적 {row.kwhSoFar.toFixed(0)} kWh
+                                    </span>
+                                  </span>
+                                ) : simOn ? (
+                                  <span className="text-[10px] text-slate-500">제외</span>
+                                ) : (
+                                  <span className="text-[10px] text-slate-500">›</span>
+                                )}
+                              </button>
+                            </div>
+                          );
+                        })}
+                      </div>
+
+                      {/* 📊 시뮬레이션 결과 — 상태별 강조: 대기 / 재생 중 / 완료 */}
+                      {simOn && (() => {
+                        // 완료 시 일평균 계산 (누적 발전량 ÷ 시뮬 일수)
+                        const daysElapsed = ((simCurrentStep + 1) / SIM_TOTAL_STEPS) * simDays;
+                        const avgPerDay = daysElapsed > 0 ? totalKwhSoFar / daysElapsed : 0;
+                        // 순위 (누적 kWh 큰 순, 상위 3)
+                        const ranked = [...selectedRows].sort((a, z) => z.kwhSoFar - a.kwhSoFar);
+                        const rankMedal = ['🥇', '🥈', '🥉'];
+                        return (
+                          <div
+                            className={`mt-2 rounded-lg border p-3 transition-colors ${
+                              atEnd
+                                ? 'border-amber-400/70 bg-amber-500/10 shadow-lg shadow-amber-500/10'
+                                : simPlaying
+                                ? 'border-amber-400/40 bg-black/40'
+                                : 'border-white/10 bg-black/30'
+                            }`}
+                          >
+                            {/* 결과 카드 헤더 — 상태 배지 포함 */}
+                            <div className="mb-2 flex items-center justify-between">
+                              <span className="text-[11px] font-bold uppercase tracking-wider text-slate-300">
+                                📊 시뮬레이션 결과
+                              </span>
+                              <span
+                                className={`rounded px-1.5 py-0.5 text-[9px] font-bold ${
+                                  atEnd
+                                    ? 'bg-emerald-500 text-white'
+                                    : simPlaying
+                                    ? 'bg-amber-500 text-white'
+                                    : 'bg-white/10 text-slate-400'
+                                }`}
+                              >
+                                {atEnd ? '✓ 완료' : simPlaying ? '● 재생 중' : '⏸ 대기'}
+                              </span>
+                            </div>
+
+                            {/* 대기 상태 (아직 재생 안 함) → 안내 */}
+                            {atStart && !simPlaying ? (
+                              <div className="py-2 text-center text-[11px] text-slate-400">
+                                ▶ 재생 버튼을 눌러 시뮬레이션을 시작하세요
+                                <br />
+                                <span className="text-slate-500">
+                                  {selectedRows.length}동 · {simDays}일 · 30초 재생
+                                </span>
+                              </div>
+                            ) : (
+                              <>
+                                {/* 큰 숫자: 완료 시 총 발전량, 재생 중이면 지금까지 */}
+                                <div className="text-center">
+                                  <div className="font-mono text-2xl font-extrabold leading-tight text-amber-300">
+                                    {totalKwhSoFar.toFixed(0)}{' '}
+                                    <span className="text-sm text-slate-400">kWh</span>
+                                  </div>
+                                  <div className="text-[10px] text-slate-500">
+                                    {atEnd
+                                      ? `${simDays}일간 총 발전량 · ${selectedRows.length}동 합계`
+                                      : `지금까지 누적 · ${selectedRows.length}동`}
+                                  </div>
+                                </div>
+
+                                {/* 보조 지표 2줄 */}
+                                <div className="mt-2 grid grid-cols-2 gap-2 text-center text-[11px]">
+                                  <div className="rounded bg-black/30 p-1.5">
+                                    <div className="font-mono text-sm font-bold text-white">
+                                      {avgPerDay.toFixed(0)}
+                                    </div>
+                                    <div className="text-[9px] text-slate-500">kWh/일 평균</div>
+                                  </div>
+                                  <div className="rounded bg-black/30 p-1.5">
+                                    <div className="font-mono text-sm font-bold text-white">
+                                      {totalKwNow.toFixed(0)}
+                                    </div>
+                                    <div className="text-[9px] text-slate-500">
+                                      {atEnd ? '완료 시각 kW' : '현재 kW'}
+                                    </div>
+                                  </div>
+                                </div>
+
+                                {/* Top 3 건물 순위 (건물 2개 이상 선택 시) */}
+                                {ranked.length >= 2 && (
+                                  <div className="mt-2 border-t border-white/10 pt-2">
+                                    <div className="mb-1 text-[9px] uppercase tracking-wider text-slate-500">
+                                      건물별 순위
+                                    </div>
+                                    <div className="flex flex-col gap-0.5 text-[11px]">
+                                      {ranked.slice(0, 3).map((r, i) => (
+                                        <div
+                                          key={r.id}
+                                          className="flex items-center justify-between gap-2"
+                                        >
+                                          <span className="truncate text-slate-300">
+                                            {rankMedal[i]} {r.name}
+                                          </span>
+                                          <span className="shrink-0 font-mono text-amber-200">
+                                            {r.kwhSoFar.toFixed(0)} kWh
+                                          </span>
+                                        </div>
+                                      ))}
+                                    </div>
+                                  </div>
+                                )}
+                              </>
+                            )}
+                          </div>
+                        );
+                      })()}
+                    </div>
+                  );
+                })()}
               </div>
             )}
           </div>
@@ -2238,6 +3095,7 @@ export default function App() {
               </div>
             )}
 
+
             {/* 4단계 전용: 설비 시뮬레이션 토글 (DR·화재 경보 시연). 비/눈 버튼 바로 아래에 붙음 */}
             {depth === 'dong' && (
               <div className="rounded-xl bg-black/70 px-4 py-3 text-left shadow-xl backdrop-blur">
@@ -2296,84 +3154,10 @@ export default function App() {
                       <span>앞으로 +90</span>
                     </div>
                   </div>
-
-                  {/* 건물 세우기 — 켜고 지도를 클릭하면 그 자리에 박스 건물 */}
-                  <div className="flex flex-col gap-1.5 border-t border-white/10 pt-2">
-                    <label className="flex cursor-pointer items-center justify-between gap-4">
-                      <span className="flex items-center gap-1.5">🏗 건물 세우기</span>
-                      <Switch
-                        checked={buildMode}
-                        onCheckedChange={setBuildMode}
-                        className="data-[state=checked]:bg-sky-500"
-                      />
-                    </label>
-                    {buildMode && (
-                      <>
-                        {/* 부지 모양 선택 */}
-                        <div className="flex gap-1">
-                          {([
-                            { k: 'rect', label: '⬛ 사각' },
-                            { k: 'circle', label: '⚫ 원형' },
-                          ] as const).map((s) => (
-                            <button
-                              key={s.k}
-                              type="button"
-                              onClick={() => setBuildShape(s.k)}
-                              className={`flex-1 rounded px-1.5 py-1 text-[11px] font-semibold transition-colors ${
-                                buildShape === s.k
-                                  ? 'bg-sky-500 text-white'
-                                  : 'bg-white/10 text-slate-300 hover:bg-white/20'
-                              }`}
-                            >
-                              {s.label}
-                            </button>
-                          ))}
-                        </div>
-                        <div className="text-[10px] text-sky-300">
-                          {buildShape === 'rect'
-                            ? '드래그 = 크기 그리기 · 클릭 = 기본 20m'
-                            : '드래그 = 반지름 · 클릭 = 기본 10m'}
-                          <br />
-                          <span className="text-slate-500">(모드 중 지도 이동 잠김 — 스크롤 줌은 가능)</span>
-                        </div>
-                        <div className="flex items-center justify-between gap-2">
-                          <span>높이</span>
-                          <span className="font-mono text-[11px] text-sky-300">{buildHeight}m</span>
-                        </div>
-                        <Slider
-                          min={10}
-                          max={100}
-                          step={5}
-                          value={[buildHeight]}
-                          onValueChange={(v) => setBuildHeight(v[0])}
-                        />
-                        {buildings.length > 0 && (
-                          <div className="flex items-center justify-between gap-2 text-[11px]">
-                            <span className="text-slate-400">{buildings.length}동 배치됨</span>
-                            <div className="flex gap-1">
-                              <button
-                                type="button"
-                                onClick={() => setBuildings((p) => p.slice(0, -1))}
-                                className="rounded bg-white/10 px-2 py-0.5 transition-colors hover:bg-white/20"
-                              >
-                                ↩ 취소
-                              </button>
-                              <button
-                                type="button"
-                                onClick={() => setBuildings([])}
-                                className="rounded bg-white/10 px-2 py-0.5 transition-colors hover:bg-white/20"
-                              >
-                                🗑 전체
-                              </button>
-                            </div>
-                          </div>
-                        )}
-                      </>
-                    )}
-                  </div>
                 </div>
               </div>
             )}
+
           </div>
 
           {/* 좌하단: 주간예보 — 2단계(시/도 선택)에서만. 지역별로 달라서 1단계(전국)엔 안 넣음 */}

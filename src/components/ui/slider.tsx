@@ -16,13 +16,21 @@ export const Slider = React.forwardRef<
     <SliderPrimitive.Track className="relative h-1.5 w-full grow overflow-hidden rounded-full bg-white/15">
       <SliderPrimitive.Range className="absolute h-full bg-amber-500" />
     </SliderPrimitive.Track>
-    <SliderPrimitive.Thumb
-      className={
-        'block h-4 w-4 rounded-full border-2 border-amber-400 bg-white shadow ' +
-        'transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/50 ' +
-        'disabled:pointer-events-none disabled:opacity-50'
-      }
-    />
+    {/* value 배열 길이만큼 thumb 렌더 — 단일/이중(range) 슬라이더 겸용 */}
+    {(() => {
+      const v = (props.value ?? props.defaultValue) as number[] | undefined;
+      const n = Array.isArray(v) ? v.length : 1;
+      return Array.from({ length: n }).map((_, i) => (
+        <SliderPrimitive.Thumb
+          key={i}
+          className={
+            'block h-4 w-4 rounded-full border-2 border-amber-400 bg-white shadow ' +
+            'transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/50 ' +
+            'disabled:pointer-events-none disabled:opacity-50'
+          }
+        />
+      ));
+    })()}
   </SliderPrimitive.Root>
 ));
 Slider.displayName = 'Slider';
