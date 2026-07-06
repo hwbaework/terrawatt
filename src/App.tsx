@@ -2,6 +2,27 @@ import { useEffect, useRef, useState } from 'react';
 import mapboxgl from 'mapbox-gl';
 import 'mapbox-gl/dist/mapbox-gl.css';
 import * as SunCalc from 'suncalc';
+import * as THREE from 'three';
+import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
+import { DRACOLoader } from 'three/examples/jsm/loaders/DRACOLoader.js';
+import { Switch } from './components/ui/switch';
+import { Slider } from './components/ui/slider';
+import {
+  BatchedRenderer,
+  ParticleSystem,
+  ConeEmitter,
+  IntervalValue,
+  ConstantValue,
+  ConstantColor,
+  ColorOverLife,
+  Gradient,
+  SizeOverLife,
+  PiecewiseBezier,
+  Bezier,
+  RenderMode,
+  Vector3 as QVector3,
+  Vector4 as QVector4,
+} from 'three.quarks';
 
 if (import.meta.env.VITE_MAPBOX_TOKEN) {
   mapboxgl.accessToken = import.meta.env.VITE_MAPBOX_TOKEN;
@@ -249,6 +270,62 @@ function dedupeParallelLines(fc: GeoJSON.FeatureCollection): GeoJSON.FeatureColl
 /* 지도 초기 중심 = 첫 번째 발전소 */
 const HOME = BUGOK_STATION;
 
+/* 부곡 태양광 정격용량 (mock, kWp) — 나중에 실측 계약값으로 교체 */
+const BUGOK_CAPACITY_KWP = 500;
+
+/* 태양 고도 → 일사량 → 발전량 (mock 계산 모델).
+   대기권 밖 태양상수 1361 W/m² × sin(고도) × 대기감쇠(맑음 0.75) → 지표 일사량.
+   맑은 정오 남향 최대 ~1000 W/m². 정격 대비 (일사량/1000)이 발전률. */
+function pvSnapshot(altitudeDeg: number, capacityKwp = BUGOK_CAPACITY_KWP) {
+  if (altitudeDeg <= 0) {
+    return { irradiance: 0, powerKw: 0, ratePct: 0 };
+  }
+  const rad = (altitudeDeg * Math.PI) / 180;
+  const irradiance = 1361 * Math.sin(rad) * 0.75; // W/m²
+  const ratio = Math.min(1, irradiance / 1000);
+  return {
+    irradiance: Math.round(irradiance),
+    powerKw: capacityKwp * ratio,
+    ratePct: ratio * 100,
+  };
+}
+
+/* 클릭 지점 둘레 정사각형 건물 부지 (한 변 sizeM 미터) — 건물 세우기 모드용 */
+function buildingFootprint(lng: number, lat: number, sizeM = 20): number[][] {
+  const dLat = sizeM / 2 / 111_320;
+  const dLng = sizeM / 2 / (111_320 * Math.cos((lat * Math.PI) / 180));
+  return [
+    [lng - dLng, lat - dLat],
+    [lng + dLng, lat - dLat],
+    [lng + dLng, lat + dLat],
+    [lng - dLng, lat + dLat],
+    [lng - dLng, lat - dLat],
+  ];
+}
+/* 두 모서리 → 축 정렬 사각형 링 (드래그로 부지 그리기) */
+function rectRing(a: { lng: number; lat: number }, b: { lng: number; lat: number }): number[][] {
+  const minLng = Math.min(a.lng, b.lng);
+  const maxLng = Math.max(a.lng, b.lng);
+  const minLat = Math.min(a.lat, b.lat);
+  const maxLat = Math.max(a.lat, b.lat);
+  return [
+    [minLng, minLat], [maxLng, minLat], [maxLng, maxLat], [minLng, maxLat], [minLng, minLat],
+  ];
+}
+/* 중심+반지름(m) → 원형 링 (원통형 건물/탱크) */
+function circleRing(lng: number, lat: number, radiusM: number, steps = 48): number[][] {
+  const dLat = radiusM / 111_320;
+  const dLng = radiusM / (111_320 * Math.cos((lat * Math.PI) / 180));
+  const ring: number[][] = [];
+  for (let i = 0; i <= steps; i++) {
+    const a = (i / steps) * 2 * Math.PI;
+    ring.push([lng + dLng * Math.cos(a), lat + dLat * Math.sin(a)]);
+  }
+  return ring;
+}
+type BuildShape = 'rect' | 'circle';
+type UserBuilding = { ring: number[][]; height: number };
+
 /* 태양 계산 기준점(발전소 위치) */
 const SUN_REF = { lat: HOME.lat, lng: HOME.lng };
 
@@ -257,27 +334,299 @@ function zoomReveal(value: number): mapboxgl.ExpressionSpecification {
   return ['interpolate', ['linear'], ['zoom'], 11, 0, 13, value] as mapboxgl.ExpressionSpecification;
 }
 
-/* 특정 좌표 둘레의 작은 원형 폴리곤 (미터 반경) — 3D 비컨 기둥의 바닥면 */
-function circlePolygon(lng: number, lat: number, radiusM: number, steps = 24): number[][] {
-  const ring: number[][] = [];
-  const dLat = radiusM / 111_320;
-  const dLng = radiusM / (111_320 * Math.cos((lat * Math.PI) / 180));
-  for (let i = 0; i <= steps; i++) {
-    const a = (i / steps) * 2 * Math.PI;
-    ring.push([lng + dLng * Math.cos(a), lat + dLat * Math.sin(a)]);
-  }
-  return ring;
-}
+/* Mapbox 커스텀 레이어에 Three.js GLTF 모델(애니메이션 포함)을 얹어 부곡에 렌더.
+   지도와 같은 카메라(투영행렬)로 그려져 이음새 없이 통합됨.
+   모델: LittlestTokyo.glb (three.js 공식 예제, DRACO 압축) — GLTF+키프레임 애니 기술 검증용 */
+/* 커스텀 레이어 + 외부 제어 API (토글 UI에서 호출) */
+type ThreeLayerHandle = mapboxgl.CustomLayerInterface & {
+  setFireVisible: (on: boolean) => void;
+  setTramVisible: (on: boolean) => void;
+  setPanelAngle: (azimuthDeg: number, tiltDeg: number) => void;
+};
+function createModelThreeLayer(lng: number, lat: number): ThreeLayerHandle {
+  const origin = mapboxgl.MercatorCoordinate.fromLngLat([lng, lat], 0);
+  const t = { x: origin.x, y: origin.y, z: origin.z, scale: origin.meterInMercatorCoordinateUnits() };
 
-/* 발전소들을 3D 비컨(원기둥) GeoJSON으로 */
-function beaconGeoJSON(plants: Plant[]): GeoJSON.FeatureCollection {
+  const camera = new THREE.Camera();
+  const scene = new THREE.Scene();
+  scene.add(new THREE.AmbientLight(0xffffff, 1.1));
+  const sun = new THREE.DirectionalLight(0xffffff, 1.6);
+  sun.position.set(40, 70, 80);
+  scene.add(sun);
+
+  // 화재 효과 텍스처 — Kenney Particle Pack (CC0, 전문가 제작 512px 스프라이트)
+  const texLoader = new THREE.TextureLoader();
+  const fireTex = texLoader.load('/textures/flame_04.png');
+  const smokeTex = texLoader.load('/textures/smoke_07.png');
+
+  // three.quarks 전문 파티클 — 창문에서 뿜어져 나오는 불길 + 연기
+  const batchRenderer = new BatchedRenderer();
+  scene.add(batchRenderer);
+  // 분출 방향: 바깥(+x) + 위. ConeEmitter는 +Z로 뿜으므로 쿼터니언으로 조준
+  const aim = new THREE.Quaternion().setFromUnitVectors(
+    new THREE.Vector3(0, 0, 1),
+    new THREE.Vector3(0.55, 1, 0).normalize(),
+  );
+
+  // 불길 — 노랑→빨강→투명으로 타오름
+  const flame = new ParticleSystem({
+    duration: 1,
+    looping: true,
+    startLife: new IntervalValue(0.5, 1.1),
+    startSpeed: new IntervalValue(7, 14),
+    startSize: new IntervalValue(3.5, 7),
+    startColor: new ConstantColor(new QVector4(1, 0.88, 0.45, 1)),
+    emissionOverTime: new ConstantValue(140),
+    shape: new ConeEmitter({ radius: 2, angle: 0.4 }),
+    material: new THREE.MeshBasicMaterial({
+      map: fireTex,
+      blending: THREE.AdditiveBlending,
+      transparent: true,
+      depthWrite: false,
+    }),
+    renderMode: RenderMode.BillBoard,
+  });
+  flame.addBehavior(
+    new ColorOverLife(
+      new Gradient(
+        [[new QVector3(1, 0.9, 0.5), 0], [new QVector3(1, 0.4, 0.05), 0.5], [new QVector3(0.85, 0.1, 0), 1]],
+        [[1, 0], [0.9, 0.5], [0, 1]], // 투명도: 밝게 태어나 끝에서 사라짐
+      ),
+    ),
+  );
+  flame.addBehavior(new SizeOverLife(new PiecewiseBezier([[new Bezier(0.7, 1, 0.75, 0.25), 0]])));
+  batchRenderer.addSystem(flame);
+  flame.emitter.quaternion.copy(aim);
+
+  // 연기 — 불 위로 길게, 커지면서 옅어짐
+  const smoke = new ParticleSystem({
+    duration: 1,
+    looping: true,
+    startLife: new IntervalValue(1.8, 3),
+    startSpeed: new IntervalValue(4, 8),
+    startSize: new IntervalValue(6, 11),
+    startColor: new ConstantColor(new QVector4(0.22, 0.22, 0.22, 0.55)),
+    emissionOverTime: new ConstantValue(40),
+    shape: new ConeEmitter({ radius: 2, angle: 0.3 }),
+    material: new THREE.MeshBasicMaterial({
+      map: smokeTex,
+      blending: THREE.NormalBlending,
+      transparent: true,
+      depthWrite: false,
+    }),
+    renderMode: RenderMode.BillBoard,
+  });
+  smoke.addBehavior(
+    new ColorOverLife(
+      new Gradient(
+        [[new QVector3(0.28, 0.28, 0.28), 0], [new QVector3(0.12, 0.12, 0.12), 1]],
+        [[0.5, 0], [0.35, 0.4], [0, 1]], // 피어오르며 옅어짐
+      ),
+    ),
+  );
+  smoke.addBehavior(new SizeOverLife(new PiecewiseBezier([[new Bezier(0.5, 0.8, 1, 1.3), 0]])));
+  batchRenderer.addSystem(smoke);
+  smoke.emitter.quaternion.copy(aim);
+
+  // 창문 위치에 불·연기 + 깜빡이는 불빛
+  const fire = new THREE.Group();
+  fire.add(flame.emitter);
+  fire.add(smoke.emitter);
+  const fireLight = new THREE.PointLight(0xff7b1a, 500, 90, 1.8);
+  fireLight.position.set(3, 0, 0);
+  fire.add(fireLight);
+  fire.position.set(25, 28, 0); // 건물 동쪽 벽 중층 창문 (벽면 바로 바깥)
+  scene.add(fire);
+  // ── 태양광 패널 (수동 각도 조절식) — 건물 옥상에 설치 ──
+  const solarBase = new THREE.Group();
+  solarBase.position.set(0, 50, 0); // 건물 옥상 중앙
+  scene.add(solarBase);
+  // 짧은 지지대 (옥상 위 낮은 프레임)
+  const pole = new THREE.Mesh(
+    new THREE.CylinderGeometry(0.3, 0.4, 2, 12),
+    new THREE.MeshStandardMaterial({ color: 0x94a3b8, metalness: 0.7, roughness: 0.4 }),
+  );
+  pole.position.y = 1;
+  solarBase.add(pole);
+  // 패널 피벗 (여기 회전으로 각도 조정)
+  const solarPivot = new THREE.Group();
+  solarPivot.position.y = 2;
+  solarBase.add(solarPivot);
+  // 패널 판 (짙은 파랑 셀)
+  const panel = new THREE.Mesh(
+    new THREE.BoxGeometry(10, 0.3, 6),
+    new THREE.MeshStandardMaterial({
+      color: 0x0f2a52,
+      metalness: 0.55,
+      roughness: 0.25,
+      emissive: 0x081a33,
+      emissiveIntensity: 0.35,
+    }),
+  );
+  solarPivot.add(panel);
+  // 셀 격자 무늬 (라인)
+  const gridMat = new THREE.LineBasicMaterial({ color: 0x1e3a5f });
+  for (let i = -4; i <= 4; i += 2) {
+    const g = new THREE.BufferGeometry().setFromPoints([
+      new THREE.Vector3(i, 0.16, -2.9),
+      new THREE.Vector3(i, 0.16, 2.9),
+    ]);
+    solarPivot.add(new THREE.Line(g, gridMat));
+  }
+  for (let j = -2.8; j <= 2.8; j += 1.4) {
+    const g = new THREE.BufferGeometry().setFromPoints([
+      new THREE.Vector3(-4.9, 0.16, j),
+      new THREE.Vector3(4.9, 0.16, j),
+    ]);
+    solarPivot.add(new THREE.Line(g, gridMat));
+  }
+
+  // 양축(2-axis) 태양광 트래커 — 슬라이더 두 개로 방위+기울기 조절 (대칭 -90~+90)
+  //   방위(azDeg): -90=동 · 0=남(기준) · +90=서 (Y축 회전 = 수직축)
+  //   기울기(tiltDeg): -90=뒤로 · 0=수평 · +90=앞으로 (X축 회전)
+  const applyAngles = (azDeg: number, tiltDeg: number) => {
+    solarPivot.rotation.set(0, 0, 0);
+    solarPivot.rotation.y = (azDeg * Math.PI) / 180;
+    solarPivot.rotation.x = -(tiltDeg * Math.PI) / 180;
+  };
+  // 초기: 남향(0°) · 30° 앞으로 기울임 (한국 고정형 표준)
+  applyAngles(0, 30);
+
+  const updateFire = (dt: number) => {
+    batchRenderer.update(dt); // 파티클 시뮬레이션 — stop() 후 잔여 입자 제거를 위해 항상 필요
+    if (fireOn) fireLight.intensity = 420 + Math.random() * 260; // 일렁이는 밝기(켜졌을 때만)
+  };
+
+
+  let renderer: THREE.WebGLRenderer | null = null;
+  let map2: mapboxgl.Map | null = null;
+  let mixer: THREE.AnimationMixer | null = null;
+  let tram: THREE.Object3D | null = null; // 기차 토글용 참조 (모델 로드 후 세팅)
+  let fireOn = true; // 외부 토글 상태 — updateFire가 참조
+  const clock = new THREE.Clock();
+
   return {
-    type: 'FeatureCollection',
-    features: plants.map((p) => ({
-      type: 'Feature',
-      properties: { id: p.id, name: p.name },
-      geometry: { type: 'Polygon', coordinates: [circlePolygon(p.lng, p.lat, 9)] },
-    })),
+    id: 'three-model',
+    type: 'custom',
+    renderingMode: '3d',
+    // 외부 제어 API — 토글 UI에서 호출
+    setFireVisible(on: boolean) {
+      fireOn = on;
+      fire.visible = on; // 조명 즉시 감춤
+      // 파티클은 batchRenderer가 별도 관리 → stop()으로 살아있는 입자(연기 포함)까지 즉시 제거
+      if (on) {
+        flame.play();
+        smoke.play();
+      } else {
+        flame.stop();
+        smoke.stop();
+      }
+      map2?.triggerRepaint();
+    },
+    setTramVisible(on: boolean) {
+      if (tram) {
+        tram.visible = on;
+        map2?.triggerRepaint();
+      }
+    },
+    setPanelAngle(azimuthDeg: number, tiltDeg: number) {
+      applyAngles(azimuthDeg, tiltDeg);
+      map2?.triggerRepaint();
+    },
+    onAdd(map, gl) {
+      map2 = map;
+      renderer = new THREE.WebGLRenderer({ canvas: map.getCanvas(), context: gl, antialias: true });
+      renderer.autoClear = false;
+
+      // DRACO 압축 GLTF 로드 (예제 webgl_animation_keyframes와 동일한 로더 구성)
+      const draco = new DRACOLoader();
+      draco.setDecoderPath('/draco/');
+      const loader = new GLTFLoader();
+      loader.setDRACOLoader(draco);
+      loader.load(
+        '/models/LittlestTokyo.glb',
+        (gltf) => {
+          const model = gltf.scene;
+          // 모델 원본 ~500유닛 → 0.1배 = 지도상 약 50m 규모 (Y-up 그대로, render의 rotX가 세워줌)
+          model.scale.setScalar(0.1);
+          model.position.set(0, 25, 0); // 바닥이 지면에 오게 살짝 올림 (모델 중심이 원점이라)
+
+          // 모델 = 이름 붙은 부품들의 조립품. F12 콘솔에서 부품 목록 확인 가능
+          if (import.meta.env.DEV) {
+            const names: string[] = [];
+            model.traverse((o) => { if (o.name) names.push(o.name); });
+            console.log('[three-model] 부품 목록:', names);
+          }
+          // 기차(Object675) 참조 저장 — 토글용
+          model.traverse((o) => { if (o.name === 'Object675') tram = o; });
+
+          // 최대한 "집처럼" — 간판/장식/캐릭터/잡물 통째 숨김.
+          // 주의: 이 모델은 `Object078` / `Object078_Plastic_Soft_0` 형태로 부모-자식이 flat 나열됨.
+          // 실제 그려지는 mesh는 자식(`_재질_0`)이라 **prefix 매칭**으로 자식까지 다 잡아야 함.
+          // Object649=건물 본체, Object674=outline(실루엣), Object675=트램 → 유지.
+          const hidePrefixes = [
+            // 옥상 광고판 12개 (Plane 시리즈 = 전부 간판)
+            'Plane001', 'Plane003',
+            'Plane103', 'Plane104', 'Plane105', 'Plane106', 'Plane107',
+            'Plane108', 'Plane109', 'Plane110', 'Plane111', 'Plane112',
+            // 판다 간판/캐릭터/부품
+            'Object078',
+            'body', 'leaf', 'hand1', 'hand2', 'foot1', 'foot2',
+            'ear_05', 'ear2_06',
+            // 전신주 전선 (일본 골목 특징)
+            'wire1', 'wire2', 'wire3', 'wire4', 'wire5', 'wire7',
+            // 옥상 반복 장식/캐릭터
+            'Object706', 'Object707', 'Object708', 'Object709',
+            'Object704', // 옥상 고양이(Plastic_Soft)
+            'Object705', // 옥상 반복 장식 (Material_5516)
+            // 간판 지지대(Plane과 짝지어 나온 것들)
+            'Object687', 'Object688', 'Object697', 'Object698', 'Object699',
+            // 골목 잡물 — 자동차·오토바이 등
+            'Object608', 'Object680', 'Object681', 'Object224',
+            // 나무 간판/문패 후보 (normal 재질) — 무사시노엔 나무 간판·소품 추정
+            'Object682', 'Object332', 'Object081', 'Object531', 'Object532', 'Object689',
+            // 판다·한자 스티커/간판 (알파 재질 서브메시 — Object649는 건물 본체이므로 서브메시만 콕 집어 제거)
+            'Object649_alpha_0',
+            'Object649_alpha_glass_0',
+            'Object649_Material #5511_0',
+            'Object649_Material #5512_0',
+            // 옆에 있는 작은 판다들 (알파 오브젝트 4개)
+            'Object619', 'Object620', 'Object621', 'Object622',
+            // 나무
+            'treezzzzz',
+          ];
+          const shouldHide = (name: string) =>
+            hidePrefixes.some((p) => name === p || name.startsWith(`${p}_`));
+          model.traverse((o) => { if (shouldHide(o.name)) o.visible = false; });
+
+          scene.add(model);
+          mixer = new THREE.AnimationMixer(model);
+          mixer.clipAction(gltf.animations[0]).play();
+          map2?.triggerRepaint();
+        },
+        undefined,
+        (err) => console.warn('[three-model] glb load fail', err),
+      );
+    },
+    render(_gl, matrix) {
+      if (!renderer || !map2) return;
+      // 가까이(줌 14+)에서만 애니메이션 재생 + 연속 렌더 (멀리선 정지 → 지도 idle 허용)
+      const delta = clock.getDelta();
+      if (map2.getZoom() >= 14) {
+        mixer?.update(delta);
+        updateFire(delta); // 항상 호출 — stop() 이후 잔여 파티클이 사라지려면 batchRenderer.update가 계속 돌아야 함
+        map2.triggerRepaint();
+      }
+      const rotX = new THREE.Matrix4().makeRotationAxis(new THREE.Vector3(1, 0, 0), Math.PI / 2);
+      const m = new THREE.Matrix4().fromArray(matrix);
+      const l = new THREE.Matrix4()
+        .makeTranslation(t.x, t.y, t.z)
+        .scale(new THREE.Vector3(t.scale, -t.scale, t.scale))
+        .multiply(rotX);
+      camera.projectionMatrix = m.multiply(l);
+      renderer.resetState();
+      renderer.render(scene, camera);
+    },
   };
 }
 
@@ -540,6 +889,18 @@ export default function App() {
   const regionRef = useRef(''); // 현재 시/도 (moveend 자동감지에서 최신값 참조)
   const syncRegionRef = useRef<() => void>(() => {}); // moveend에서 호출할 최신 자동동기화 콜백
   const declutterRef = useRef<boolean | null>(null); // 라벨 on/off 직전 상태 (중복 토글=깜빡임 방지)
+  const threeRef = useRef<ThreeLayerHandle | null>(null); // Three.js 레이어 제어 (화재/기차 토글)
+  const [fireOn, setFireOn] = useState(true); // 4단계 화재 시뮬레이션 (기본 ON)
+  const [tramOn, setTramOn] = useState(true); // 4단계 기차 애니메이션 (기본 ON)
+  const [panelAzimuth, setPanelAzimuth] = useState(0); // 방위(-90=동·0=남·+90=서)
+  const [panelTilt, setPanelTilt] = useState(30); // 기울기(-90=뒤로·0=수평·+90=앞으로), 한국 표준 30°
+  const [buildMode, setBuildMode] = useState(false); // 건물 세우기 모드 (4단계)
+  const buildModeRef = useRef(false); // 지도 클릭 핸들러가 최신값 참조
+  const [buildHeight, setBuildHeight] = useState(25); // 새 건물 높이 (m)
+  const buildHeightRef = useRef(25);
+  const [buildShape, setBuildShape] = useState<BuildShape>('rect'); // 부지 모양 (사각/원형)
+  const buildShapeRef = useRef<BuildShape>('rect');
+  const [buildings, setBuildings] = useState<UserBuilding[]>([]); // 사용자가 세운 건물들
   const outlineTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [hour, setHour] = useState(() => {
     const n = new Date();
@@ -580,6 +941,56 @@ export default function App() {
     // 스크롤/이동이 멎으면 지도 중심의 지역을 자동 감지해 표시 동기화 (카메라 안 건드림)
     const onMoveEnd = () => syncRegionRef.current();
     map.on('moveend', onMoveEnd);
+    // 건물 세우기 모드 (4단계에서만) — 사각형/원형:
+    //   누름 → 드래그 미리보기 → 놓으면 생성 (짧은 클릭 = 기본 크기)
+    let buildStart: { lngLat: mapboxgl.LngLat; point: mapboxgl.Point } | null = null;
+    const previewSrc = () => map.getSource('build-preview') as mapboxgl.GeoJSONSource | undefined;
+    const setPreviewRing = (ring: number[][]) =>
+      previewSrc()?.setData({
+        type: 'FeatureCollection',
+        features: [{ type: 'Feature', properties: {}, geometry: { type: 'Polygon', coordinates: [ring] } }],
+      });
+    const clearPreview = () => previewSrc()?.setData({ type: 'FeatureCollection', features: [] });
+    // 드래그 반경(m) — 원형용
+    const radiusM = (a: mapboxgl.LngLat, b: mapboxgl.LngLat) =>
+      approxDist([a.lng, a.lat], [b.lng, b.lat]) * 111_320;
+
+    const onBuildDown = (e: mapboxgl.MapMouseEvent) => {
+      if (!buildModeRef.current || depthRef.current !== 'dong') return;
+      buildStart = { lngLat: e.lngLat, point: e.point };
+    };
+    const onBuildMove = (e: mapboxgl.MapMouseEvent) => {
+      if (!buildStart) return;
+      if (buildShapeRef.current === 'circle') {
+        setPreviewRing(circleRing(buildStart.lngLat.lng, buildStart.lngLat.lat, Math.max(2, radiusM(buildStart.lngLat, e.lngLat))));
+      } else {
+        setPreviewRing(rectRing(buildStart.lngLat, e.lngLat));
+      }
+    };
+    const onBuildUp = (e: mapboxgl.MapMouseEvent) => {
+      if (!buildStart) return;
+      const start = buildStart;
+      buildStart = null;
+      clearPreview();
+      if (!buildModeRef.current || depthRef.current !== 'dong') return;
+      const dragPx = Math.hypot(e.point.x - start.point.x, e.point.y - start.point.y);
+      let ring: number[][];
+      if (buildShapeRef.current === 'circle') {
+        ring = circleRing(
+          start.lngLat.lng,
+          start.lngLat.lat,
+          dragPx < 6 ? 10 : Math.max(2, radiusM(start.lngLat, e.lngLat)), // 클릭 = 반지름 10m
+        );
+      } else {
+        ring = dragPx < 6
+          ? buildingFootprint(e.lngLat.lng, e.lngLat.lat) // 클릭 = 기본 20m 부지
+          : rectRing(start.lngLat, e.lngLat);
+      }
+      setBuildings((prev) => [...prev, { ring, height: buildHeightRef.current }]);
+    };
+    map.on('mousedown', onBuildDown);
+    map.on('mousemove', onBuildMove);
+    map.on('mouseup', onBuildUp);
 
     let flowRaf = 0; // 송전망 흐름 애니메이션 프레임 id
 
@@ -630,30 +1041,41 @@ export default function App() {
         console.warn('[mapbox config]', err);
       }
 
-      // 3D 비컨(초록 원기둥) — 실제 3D 씬에 박혀 건물처럼 기울고 가려짐
-      if (!map.getSource('plant-beacons')) {
-        map.addSource('plant-beacons', { type: 'geojson', data: beaconGeoJSON(PLANTS) });
+      // 부곡 = Three.js GLTF 모델 (커스텀 레이어) — 애니메이션 포함 3D 모델이 지도에 이음새 없이 통합.
+      // (기존 초록 비컨·fill-extrusion 패널 mock은 이 모델로 대체됨. 클릭/선택은 핀 마커가 담당)
+      if (!map.getLayer('three-model')) {
+        const layer = createModelThreeLayer(BUGOK_STATION.lng, BUGOK_STATION.lat);
+        map.addLayer(layer);
+        threeRef.current = layer; // 토글 UI가 이 handle로 화재/기차 제어
+      }
+
+      // 사용자 배치 건물 — "건물 세우기" 모드에서 클릭/드래그로 세우는 박스 (fill-extrusion)
+      if (!map.getSource('user-buildings')) {
+        map.addSource('user-buildings', { type: 'geojson', data: { type: 'FeatureCollection', features: [] } });
         map.addLayer({
-          id: 'plant-beacons-3d',
+          id: 'user-buildings-3d',
           type: 'fill-extrusion',
-          source: 'plant-beacons',
+          source: 'user-buildings',
           paint: {
-            'fill-extrusion-color': '#22c55e',
+            'fill-extrusion-color': '#38bdf8',
             'fill-extrusion-base': 0,
-            'fill-extrusion-height': 55, // 기둥 높이(m)
-            'fill-extrusion-opacity': 0.75,
+            'fill-extrusion-height': ['get', 'height'],
+            'fill-extrusion-opacity': 0.85,
           },
         });
-        map.on('click', 'plant-beacons-3d', (e) => {
-          const id = e.features?.[0]?.properties?.id;
-          const p = PLANTS.find((x) => x.id === id);
-          if (p) selectPlant(p);
+        // 드래그 중 부지 미리보기 (반투명 면 + 외곽선)
+        map.addSource('build-preview', { type: 'geojson', data: { type: 'FeatureCollection', features: [] } });
+        map.addLayer({
+          id: 'build-preview-fill',
+          type: 'fill',
+          source: 'build-preview',
+          paint: { 'fill-color': '#38bdf8', 'fill-opacity': 0.25 },
         });
-        map.on('mouseenter', 'plant-beacons-3d', () => {
-          map.getCanvas().style.cursor = 'pointer';
-        });
-        map.on('mouseleave', 'plant-beacons-3d', () => {
-          map.getCanvas().style.cursor = '';
+        map.addLayer({
+          id: 'build-preview-line',
+          type: 'line',
+          source: 'build-preview',
+          paint: { 'line-color': '#7dd3fc', 'line-width': 2, 'line-dasharray': [2, 1.5] },
         });
       }
 
@@ -982,6 +1404,9 @@ export default function App() {
       cancelAnimationFrame(flowRaf);
       map.off('zoom', onZoom);
       map.off('moveend', onMoveEnd);
+      map.off('mousedown', onBuildDown);
+      map.off('mousemove', onBuildMove);
+      map.off('mouseup', onBuildUp);
       window.removeEventListener('resize', safeResize);
       ro.disconnect();
       map.remove();
@@ -1036,7 +1461,55 @@ export default function App() {
     } catch (err) {
       console.warn('[sun light]', err);
     }
+
   }, [hour, status]);
+
+  /* 태양광 패널 각도(양축) → 3D 씬 반영 */
+  useEffect(() => {
+    if (status === 'ready') threeRef.current?.setPanelAngle(panelAzimuth, panelTilt);
+  }, [panelAzimuth, panelTilt, status]);
+
+  /* 건물 세우기: 배치 목록 → 지도 소스 반영 */
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map || status !== 'ready') return;
+    (map.getSource('user-buildings') as mapboxgl.GeoJSONSource | undefined)?.setData({
+      type: 'FeatureCollection',
+      features: buildings.map((b) => ({
+        type: 'Feature',
+        properties: { height: b.height },
+        geometry: { type: 'Polygon', coordinates: [b.ring] },
+      })),
+    });
+  }, [buildings, status]);
+
+  /* 건물 세우기 모드 → 핸들러 ref + 커서 + 지도 끌기 잠금(드래그=부지 그리기가 되도록) */
+  useEffect(() => {
+    buildModeRef.current = buildMode;
+    const map = mapRef.current;
+    if (!map) return;
+    map.getCanvas().style.cursor = buildMode ? 'crosshair' : '';
+    if (buildMode) {
+      map.dragPan.disable();
+    } else {
+      map.dragPan.enable();
+      (map.getSource('build-preview') as mapboxgl.GeoJSONSource | undefined)?.setData({
+        type: 'FeatureCollection',
+        features: [],
+      });
+    }
+  }, [buildMode]);
+  /* 모양 변경 → ref 동기화 */
+  useEffect(() => {
+    buildShapeRef.current = buildShape;
+  }, [buildShape]);
+  useEffect(() => {
+    buildHeightRef.current = buildHeight;
+  }, [buildHeight]);
+  /* 4단계를 벗어나면 건물 세우기 모드 자동 해제 */
+  useEffect(() => {
+    if (depth !== 'dong') setBuildMode(false);
+  }, [depth]);
 
   /* 날씨(맑음/비/눈) 몰입 효과 — 상세(3·4단계)에서만. 광역(1·2)에선 항상 해제 */
   useEffect(() => {
@@ -1168,6 +1641,14 @@ export default function App() {
   useEffect(() => {
     regionRef.current = region;
   }, [region]);
+
+  /* 화재/기차 토글 → Three.js 레이어에 반영 (4단계 UI에서만 조작 가능) */
+  useEffect(() => {
+    if (status === 'ready') threeRef.current?.setFireVisible(fireOn);
+  }, [fireOn, status]);
+  useEffect(() => {
+    if (status === 'ready') threeRef.current?.setTramVisible(tramOn);
+  }, [tramOn, status]);
 
   /* 발전소 선택 = 카메라 이동 + 상세 표시 */
   const selectPlant = (p: Plant) => {
@@ -1456,6 +1937,47 @@ export default function App() {
 
       {status === 'ready' && (
         <>
+          {/* 화재 경보 — 전체 화면. 4단계 + 화재 스위치 ON일 때. 세련된 반투명 톤 */}
+          {depth === 'dong' && fireOn && (
+            <>
+              {/* 화면 테두리 은은한 붉은 발광 (부드럽게 pulse). 인터랙션은 통과 */}
+              <div
+                className="pointer-events-none fixed inset-0 z-30"
+                style={{
+                  boxShadow: 'inset 0 0 180px 60px rgba(248, 113, 113, 0.28)',
+                  animation: 'terrawatt-alert-glow 2.4s ease-in-out infinite',
+                }}
+              />
+              <style>{`@keyframes terrawatt-alert-glow {
+                0%, 100% { opacity: 0.7; }
+                50% { opacity: 1; }
+              }`}</style>
+              {/* 상단 전체 가로 알림 — 반투명 유리 위 정보성 텍스트 */}
+              <div
+                className="fixed left-0 right-0 top-0 z-40 flex items-center justify-center gap-3 border-b border-red-400/40 py-3 text-white backdrop-blur-md"
+                style={{
+                  background: 'linear-gradient(180deg, rgba(190, 32, 32, 0.55) 0%, rgba(190, 32, 32, 0.25) 100%)',
+                }}
+              >
+                <span
+                  className="flex h-8 w-8 items-center justify-center rounded-full bg-red-500/80 text-lg"
+                  style={{ animation: 'terrawatt-alert-glow 1.4s ease-in-out infinite' }}
+                >
+                  ⚠
+                </span>
+                <div className="flex flex-col items-start leading-tight sm:flex-row sm:items-center sm:gap-3">
+                  <span className="text-sm font-semibold uppercase tracking-[0.15em] text-red-200 sm:text-xs">
+                    Fire Alert
+                  </span>
+                  <span className="text-base font-bold sm:text-lg">
+                    화재 발생 · 부곡 에너지 스테이션
+                  </span>
+                  <span className="text-xs font-medium text-red-100/80">진화 대응 중</span>
+                </div>
+              </div>
+            </>
+          )}
+
           {/* 상단 중앙: 행정 뎁스 선택 (나라 › 시 › 구/군 › 동) */}
           <div className="absolute left-1/2 top-4 z-10 -translate-x-1/2 rounded-lg bg-black/60 px-3 py-2 shadow-xl backdrop-blur">
             <div className="flex items-center gap-2 text-sm text-white">
@@ -1567,6 +2089,54 @@ export default function App() {
                     🧭 {selected.lat.toFixed(5)}, {selected.lng.toFixed(5)}
                   </div>
                 </div>
+
+                {/* 실시간 발전 상태 — 현재 상태 + 액션 조언 (raw 수치는 최소화) */}
+                {(() => {
+                  const snap = pvSnapshot(sunAltDeg);
+                  let status: { icon: string; label: string; tone: string; advice: string };
+                  if (sunAltDeg <= 0) {
+                    status = { icon: '🌙', label: '대기 중', tone: 'text-slate-400',
+                      advice: `일출 ${fmt(times.sunrise)} 예정 · 시스템 대기 상태` };
+                  } else if (snap.ratePct >= 75) {
+                    status = { icon: '☀', label: '최적 발전 중', tone: 'text-amber-300',
+                      advice: '정상 가동 · 별도 조치 불필요' };
+                  } else if (snap.ratePct >= 40) {
+                    status = { icon: '🌤', label: '정상 발전 중', tone: 'text-yellow-300',
+                      advice: '패널 청소 시 발전 효율 +5~10%' };
+                  } else if (snap.ratePct >= 10) {
+                    status = { icon: '☁', label: '저출력 발전', tone: 'text-sky-300',
+                      advice: '흐리거나 저고도 · 배터리(ESS) 방전 권장' };
+                  } else {
+                    status = { icon: '🌅', label: '발전 준비', tone: 'text-orange-300',
+                      advice: '태양 상승 대기 · 곧 발전 시작' };
+                  }
+                  return (
+                    <div className="mt-3 rounded-lg border border-white/10 bg-white/5 p-3">
+                      <div className={`flex items-center gap-2 text-sm font-bold ${status.tone}`}>
+                        <span className="text-lg">{status.icon}</span>
+                        <span>{status.label}</span>
+                      </div>
+                      <div className="mt-2 flex items-baseline gap-1.5">
+                        <span className="font-mono text-2xl font-extrabold text-white">{snap.powerKw.toFixed(1)}</span>
+                        <span className="text-xs text-slate-400">kW 발전</span>
+                        <span className="ml-auto font-mono text-xs text-slate-400">
+                          {snap.ratePct.toFixed(0)}% / 500 kW
+                        </span>
+                      </div>
+                      <div className="mt-1.5 h-1.5 overflow-hidden rounded-full bg-white/10">
+                        <div
+                          className="h-full rounded-full bg-gradient-to-r from-amber-400 to-orange-500 transition-all duration-500"
+                          style={{ width: `${Math.min(100, snap.ratePct)}%` }}
+                        />
+                      </div>
+                      <div className="mt-2 flex items-start gap-1 text-[11px] text-slate-300">
+                        <span className="text-slate-500">💡</span>
+                        <span>{status.advice}</span>
+                      </div>
+                    </div>
+                  );
+                })()}
+
                 <button
                   type="button"
                   onClick={() => selectPlant(selected)}
@@ -1625,7 +2195,7 @@ export default function App() {
                 {(wxView === 'wind' || wxView === 'precip') && (
                   <div className="rounded-xl bg-black/70 px-4 py-3 text-left shadow-xl backdrop-blur">
                     <div className="mb-2 text-xs font-bold tracking-wide text-white">
-                      {wxView === 'wind' ? '💨 순간풍속 (mock)' : '🌧 강수량 (mock)'}
+                      {wxView === 'wind' ? '💨 순간풍속' : '🌧 강수량'}
                     </div>
                     <div className="flex flex-col gap-1 text-[11px] text-slate-200">
                       {(wxView === 'wind' ? WIND_BANDS : PRECIP_BANDS).map((s) => (
@@ -1667,13 +2237,150 @@ export default function App() {
                 ))}
               </div>
             )}
+
+            {/* 4단계 전용: 설비 시뮬레이션 토글 (DR·화재 경보 시연). 비/눈 버튼 바로 아래에 붙음 */}
+            {depth === 'dong' && (
+              <div className="rounded-xl bg-black/70 px-4 py-3 text-left shadow-xl backdrop-blur">
+                <div className="mb-2 text-xs font-bold tracking-wide text-white">🎛 설비 시뮬레이션</div>
+                <div className="flex flex-col gap-2 text-[12px] text-slate-200">
+                  <label className="flex cursor-pointer items-center justify-between gap-4">
+                    <span className="flex items-center gap-1.5">🔥 화재 경보</span>
+                    <Switch
+                      checked={fireOn}
+                      onCheckedChange={setFireOn}
+                      className="data-[state=checked]:bg-red-500"
+                    />
+                  </label>
+                  <label className="flex cursor-pointer items-center justify-between gap-4">
+                    <span className="flex items-center gap-1.5">🚋 기차 운행</span>
+                    <Switch
+                      checked={tramOn}
+                      onCheckedChange={setTramOn}
+                      className="data-[state=checked]:bg-emerald-500"
+                    />
+                  </label>
+                  {/* 태양광 패널 양축 조절 (대칭 -90~+90) — 실제 dual-axis 트래커와 동일 */}
+                  <div className="flex flex-col gap-1.5 border-t border-white/10 pt-2">
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="flex items-center gap-1.5">☀ 방위</span>
+                      <span className="font-mono text-[11px] text-amber-300">{panelAzimuth}°</span>
+                    </div>
+                    <Slider
+                      min={-90}
+                      max={90}
+                      step={1}
+                      value={[panelAzimuth]}
+                      onValueChange={(v) => setPanelAzimuth(v[0])}
+                    />
+                    <div className="flex justify-between text-[9px] text-slate-500">
+                      <span>동 -90</span>
+                      <span>남 0</span>
+                      <span>서 +90</span>
+                    </div>
+                  </div>
+                  <div className="flex flex-col gap-1.5">
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="flex items-center gap-1.5">📐 기울기</span>
+                      <span className="font-mono text-[11px] text-amber-300">{panelTilt}°</span>
+                    </div>
+                    <Slider
+                      min={-90}
+                      max={90}
+                      step={1}
+                      value={[panelTilt]}
+                      onValueChange={(v) => setPanelTilt(v[0])}
+                    />
+                    <div className="flex justify-between text-[9px] text-slate-500">
+                      <span>뒤로 -90</span>
+                      <span>수평 0</span>
+                      <span>앞으로 +90</span>
+                    </div>
+                  </div>
+
+                  {/* 건물 세우기 — 켜고 지도를 클릭하면 그 자리에 박스 건물 */}
+                  <div className="flex flex-col gap-1.5 border-t border-white/10 pt-2">
+                    <label className="flex cursor-pointer items-center justify-between gap-4">
+                      <span className="flex items-center gap-1.5">🏗 건물 세우기</span>
+                      <Switch
+                        checked={buildMode}
+                        onCheckedChange={setBuildMode}
+                        className="data-[state=checked]:bg-sky-500"
+                      />
+                    </label>
+                    {buildMode && (
+                      <>
+                        {/* 부지 모양 선택 */}
+                        <div className="flex gap-1">
+                          {([
+                            { k: 'rect', label: '⬛ 사각' },
+                            { k: 'circle', label: '⚫ 원형' },
+                          ] as const).map((s) => (
+                            <button
+                              key={s.k}
+                              type="button"
+                              onClick={() => setBuildShape(s.k)}
+                              className={`flex-1 rounded px-1.5 py-1 text-[11px] font-semibold transition-colors ${
+                                buildShape === s.k
+                                  ? 'bg-sky-500 text-white'
+                                  : 'bg-white/10 text-slate-300 hover:bg-white/20'
+                              }`}
+                            >
+                              {s.label}
+                            </button>
+                          ))}
+                        </div>
+                        <div className="text-[10px] text-sky-300">
+                          {buildShape === 'rect'
+                            ? '드래그 = 크기 그리기 · 클릭 = 기본 20m'
+                            : '드래그 = 반지름 · 클릭 = 기본 10m'}
+                          <br />
+                          <span className="text-slate-500">(모드 중 지도 이동 잠김 — 스크롤 줌은 가능)</span>
+                        </div>
+                        <div className="flex items-center justify-between gap-2">
+                          <span>높이</span>
+                          <span className="font-mono text-[11px] text-sky-300">{buildHeight}m</span>
+                        </div>
+                        <Slider
+                          min={10}
+                          max={100}
+                          step={5}
+                          value={[buildHeight]}
+                          onValueChange={(v) => setBuildHeight(v[0])}
+                        />
+                        {buildings.length > 0 && (
+                          <div className="flex items-center justify-between gap-2 text-[11px]">
+                            <span className="text-slate-400">{buildings.length}동 배치됨</span>
+                            <div className="flex gap-1">
+                              <button
+                                type="button"
+                                onClick={() => setBuildings((p) => p.slice(0, -1))}
+                                className="rounded bg-white/10 px-2 py-0.5 transition-colors hover:bg-white/20"
+                              >
+                                ↩ 취소
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => setBuildings([])}
+                                className="rounded bg-white/10 px-2 py-0.5 transition-colors hover:bg-white/20"
+                              >
+                                🗑 전체
+                              </button>
+                            </div>
+                          </div>
+                        )}
+                      </>
+                    )}
+                  </div>
+                </div>
+              </div>
+            )}
           </div>
 
           {/* 좌하단: 주간예보 — 2단계(시/도 선택)에서만. 지역별로 달라서 1단계(전국)엔 안 넣음 */}
           {depth === 'city' && (
             <div className="absolute bottom-8 left-4 z-10 rounded-xl bg-black/70 px-3 py-3 shadow-xl backdrop-blur">
               <div className="mb-2 text-xs font-bold tracking-wide text-white">
-                📅 {region ? `${region} ` : ''}주간예보 (mock)
+                📅 {region ? `${region} ` : ''}주간예보
               </div>
               <div className="flex gap-1">
                 {weekly.map((d, i) => (
