@@ -8,3 +8,6 @@ dist
 .DS_Store
 .idea/
 .wrangler
+
+# 3D 모델 원본(94MB) — public 밖에 보관해 배포에서도 제외. 저장소엔 압축본(-opt.glb)만 커밋
+/models-src/
