@@ -2,27 +2,8 @@ import { useEffect, useRef, useState } from 'react';
 import mapboxgl from 'mapbox-gl';
 import 'mapbox-gl/dist/mapbox-gl.css';
 import * as SunCalc from 'suncalc';
-import * as THREE from 'three';
-import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
-import { DRACOLoader } from 'three/examples/jsm/loaders/DRACOLoader.js';
 import { Switch } from './components/ui/switch';
 import { Slider } from './components/ui/slider';
-import {
-  BatchedRenderer,
-  ParticleSystem,
-  ConeEmitter,
-  IntervalValue,
-  ConstantValue,
-  ConstantColor,
-  ColorOverLife,
-  Gradient,
-  SizeOverLife,
-  PiecewiseBezier,
-  Bezier,
-  RenderMode,
-  Vector3 as QVector3,
-  Vector4 as QVector4,
-} from 'three.quarks';
 
 if (import.meta.env.VITE_MAPBOX_TOKEN) {
   mapboxgl.accessToken = import.meta.env.VITE_MAPBOX_TOKEN;
@@ -398,291 +379,65 @@ function zoomReveal(value: number): mapboxgl.ExpressionSpecification {
   return ['interpolate', ['linear'], ['zoom'], 11, 0, 13, value] as mapboxgl.ExpressionSpecification;
 }
 
-/* Mapbox 커스텀 레이어에 Three.js GLTF 모델(애니메이션 포함)을 얹어 부곡에 렌더.
-   지도와 같은 카메라(투영행렬)로 그려져 이음새 없이 통합됨.
-   모델: LittlestTokyo.glb (three.js 공식 예제, DRACO 압축) — GLTF+키프레임 애니 기술 검증용 */
-/* 커스텀 레이어 + 외부 제어 API (토글 UI에서 호출) */
-type ThreeLayerHandle = mapboxgl.CustomLayerInterface & {
-  setFireVisible: (on: boolean) => void;
-  setTramVisible: (on: boolean) => void;
-  setPanelAngle: (azimuthDeg: number, tiltDeg: number) => void;
-};
-function createModelThreeLayer(lng: number, lat: number): ThreeLayerHandle {
+
+/* 부곡 3D 건물 — 지연 로딩판.
+   줌 15 이상으로 들어갈 때 처음 한 번만 three.js·모델을 내려받는다.
+   (멀리서 보는 동안엔 3D 엔진도 모델도 전혀 받지 않음 → 초기 로딩 부담 0) */
+let buildingLoading = false;
+async function addBuildingLayerLazy(map: mapboxgl.Map, lng: number, lat: number) {
+  if (buildingLoading || map.getLayer('three-model')) return;
+  buildingLoading = true;
+  const [THREE, { GLTFLoader }, { DRACOLoader }] = await Promise.all([
+    import('three'),
+    import('three/examples/jsm/loaders/GLTFLoader.js'),
+    import('three/examples/jsm/loaders/DRACOLoader.js'),
+  ]);
+  if (map.getLayer('three-model')) return;
+
   const origin = mapboxgl.MercatorCoordinate.fromLngLat([lng, lat], 0);
   const t = { x: origin.x, y: origin.y, z: origin.z, scale: origin.meterInMercatorCoordinateUnits() };
-
   const camera = new THREE.Camera();
   const scene = new THREE.Scene();
-  scene.add(new THREE.AmbientLight(0xffffff, 1.1));
-  const sun = new THREE.DirectionalLight(0xffffff, 1.6);
+  scene.add(new THREE.AmbientLight(0xffffff, 1.2));
+  const sun = new THREE.DirectionalLight(0xffffff, 1.5);
   sun.position.set(40, 70, 80);
   scene.add(sun);
-
-  // 화재 효과 텍스처 — Kenney Particle Pack (CC0, 전문가 제작 512px 스프라이트)
-  const texLoader = new THREE.TextureLoader();
-  const fireTex = texLoader.load('/textures/flame_04.png');
-  const smokeTex = texLoader.load('/textures/smoke_07.png');
-
-  // three.quarks 전문 파티클 — 창문에서 뿜어져 나오는 불길 + 연기
-  const batchRenderer = new BatchedRenderer();
-  scene.add(batchRenderer);
-  // 분출 방향: 바깥(+x) + 위. ConeEmitter는 +Z로 뿜으므로 쿼터니언으로 조준
-  const aim = new THREE.Quaternion().setFromUnitVectors(
-    new THREE.Vector3(0, 0, 1),
-    new THREE.Vector3(0.55, 1, 0).normalize(),
-  );
-
-  // 불길 — 노랑→빨강→투명으로 타오름
-  const flame = new ParticleSystem({
-    duration: 1,
-    looping: true,
-    startLife: new IntervalValue(0.5, 1.1),
-    startSpeed: new IntervalValue(7, 14),
-    startSize: new IntervalValue(3.5, 7),
-    startColor: new ConstantColor(new QVector4(1, 0.88, 0.45, 1)),
-    emissionOverTime: new ConstantValue(140),
-    shape: new ConeEmitter({ radius: 2, angle: 0.4 }),
-    material: new THREE.MeshBasicMaterial({
-      map: fireTex,
-      blending: THREE.AdditiveBlending,
-      transparent: true,
-      depthWrite: false,
-    }),
-    renderMode: RenderMode.BillBoard,
-  });
-  flame.addBehavior(
-    new ColorOverLife(
-      new Gradient(
-        [[new QVector3(1, 0.9, 0.5), 0], [new QVector3(1, 0.4, 0.05), 0.5], [new QVector3(0.85, 0.1, 0), 1]],
-        [[1, 0], [0.9, 0.5], [0, 1]], // 투명도: 밝게 태어나 끝에서 사라짐
-      ),
-    ),
-  );
-  flame.addBehavior(new SizeOverLife(new PiecewiseBezier([[new Bezier(0.7, 1, 0.75, 0.25), 0]])));
-  batchRenderer.addSystem(flame);
-  flame.emitter.quaternion.copy(aim);
-
-  // 연기 — 불 위로 길게, 커지면서 옅어짐
-  const smoke = new ParticleSystem({
-    duration: 1,
-    looping: true,
-    startLife: new IntervalValue(1.8, 3),
-    startSpeed: new IntervalValue(4, 8),
-    startSize: new IntervalValue(6, 11),
-    startColor: new ConstantColor(new QVector4(0.22, 0.22, 0.22, 0.55)),
-    emissionOverTime: new ConstantValue(40),
-    shape: new ConeEmitter({ radius: 2, angle: 0.3 }),
-    material: new THREE.MeshBasicMaterial({
-      map: smokeTex,
-      blending: THREE.NormalBlending,
-      transparent: true,
-      depthWrite: false,
-    }),
-    renderMode: RenderMode.BillBoard,
-  });
-  smoke.addBehavior(
-    new ColorOverLife(
-      new Gradient(
-        [[new QVector3(0.28, 0.28, 0.28), 0], [new QVector3(0.12, 0.12, 0.12), 1]],
-        [[0.5, 0], [0.35, 0.4], [0, 1]], // 피어오르며 옅어짐
-      ),
-    ),
-  );
-  smoke.addBehavior(new SizeOverLife(new PiecewiseBezier([[new Bezier(0.5, 0.8, 1, 1.3), 0]])));
-  batchRenderer.addSystem(smoke);
-  smoke.emitter.quaternion.copy(aim);
-
-  // 창문 위치에 불·연기 + 깜빡이는 불빛
-  const fire = new THREE.Group();
-  fire.add(flame.emitter);
-  fire.add(smoke.emitter);
-  const fireLight = new THREE.PointLight(0xff7b1a, 500, 90, 1.8);
-  fireLight.position.set(3, 0, 0);
-  fire.add(fireLight);
-  fire.position.set(25, 28, 0); // 건물 동쪽 벽 중층 창문 (벽면 바로 바깥)
-  scene.add(fire);
-  // ── 태양광 패널 (수동 각도 조절식) — 건물 옥상에 설치 ──
-  const solarBase = new THREE.Group();
-  solarBase.position.set(0, 50, 0); // 건물 옥상 중앙
-  scene.add(solarBase);
-  // 짧은 지지대 (옥상 위 낮은 프레임)
-  const pole = new THREE.Mesh(
-    new THREE.CylinderGeometry(0.3, 0.4, 2, 12),
-    new THREE.MeshStandardMaterial({ color: 0x94a3b8, metalness: 0.7, roughness: 0.4 }),
-  );
-  pole.position.y = 1;
-  solarBase.add(pole);
-  // 패널 피벗 (여기 회전으로 각도 조정)
-  const solarPivot = new THREE.Group();
-  solarPivot.position.y = 2;
-  solarBase.add(solarPivot);
-  // 패널 판 (짙은 파랑 셀)
-  const panel = new THREE.Mesh(
-    new THREE.BoxGeometry(10, 0.3, 6),
-    new THREE.MeshStandardMaterial({
-      color: 0x0f2a52,
-      metalness: 0.55,
-      roughness: 0.25,
-      emissive: 0x081a33,
-      emissiveIntensity: 0.35,
-    }),
-  );
-  solarPivot.add(panel);
-  // 셀 격자 무늬 (라인)
-  const gridMat = new THREE.LineBasicMaterial({ color: 0x1e3a5f });
-  for (let i = -4; i <= 4; i += 2) {
-    const g = new THREE.BufferGeometry().setFromPoints([
-      new THREE.Vector3(i, 0.16, -2.9),
-      new THREE.Vector3(i, 0.16, 2.9),
-    ]);
-    solarPivot.add(new THREE.Line(g, gridMat));
-  }
-  for (let j = -2.8; j <= 2.8; j += 1.4) {
-    const g = new THREE.BufferGeometry().setFromPoints([
-      new THREE.Vector3(-4.9, 0.16, j),
-      new THREE.Vector3(4.9, 0.16, j),
-    ]);
-    solarPivot.add(new THREE.Line(g, gridMat));
-  }
-
-  // 양축(2-axis) 태양광 트래커 — 슬라이더 두 개로 방위+기울기 조절 (대칭 -90~+90)
-  //   방위(azDeg): -90=동 · 0=남(기준) · +90=서 (Y축 회전 = 수직축)
-  //   기울기(tiltDeg): -90=뒤로 · 0=수평 · +90=앞으로 (X축 회전)
-  const applyAngles = (azDeg: number, tiltDeg: number) => {
-    solarPivot.rotation.set(0, 0, 0);
-    solarPivot.rotation.y = (azDeg * Math.PI) / 180;
-    solarPivot.rotation.x = -(tiltDeg * Math.PI) / 180;
-  };
-  // 초기: 남향(0°) · 30° 앞으로 기울임 (한국 고정형 표준)
-  applyAngles(0, 30);
-
-  const updateFire = (dt: number) => {
-    batchRenderer.update(dt); // 파티클 시뮬레이션 — stop() 후 잔여 입자 제거를 위해 항상 필요
-    if (fireOn) fireLight.intensity = 420 + Math.random() * 260; // 일렁이는 밝기(켜졌을 때만)
-  };
-
-
-  let renderer: THREE.WebGLRenderer | null = null;
+  let renderer: import('three').WebGLRenderer | null = null;
   let map2: mapboxgl.Map | null = null;
-  let mixer: THREE.AnimationMixer | null = null;
-  let tram: THREE.Object3D | null = null; // 기차 토글용 참조 (모델 로드 후 세팅)
-  let fireOn = true; // 외부 토글 상태 — updateFire가 참조
-  const clock = new THREE.Clock();
 
-  return {
+  map.addLayer({
     id: 'three-model',
     type: 'custom',
     renderingMode: '3d',
-    // 외부 제어 API — 토글 UI에서 호출
-    setFireVisible(on: boolean) {
-      fireOn = on;
-      fire.visible = on; // 조명 즉시 감춤
-      // 파티클은 batchRenderer가 별도 관리 → stop()으로 살아있는 입자(연기 포함)까지 즉시 제거
-      if (on) {
-        flame.play();
-        smoke.play();
-      } else {
-        flame.stop();
-        smoke.stop();
-      }
-      map2?.triggerRepaint();
-    },
-    setTramVisible(on: boolean) {
-      if (tram) {
-        tram.visible = on;
-        map2?.triggerRepaint();
-      }
-    },
-    setPanelAngle(azimuthDeg: number, tiltDeg: number) {
-      applyAngles(azimuthDeg, tiltDeg);
-      map2?.triggerRepaint();
-    },
-    onAdd(map, gl) {
-      map2 = map;
-      renderer = new THREE.WebGLRenderer({ canvas: map.getCanvas(), context: gl, antialias: true });
+    onAdd(m, gl) {
+      map2 = m;
+      renderer = new THREE.WebGLRenderer({ canvas: m.getCanvas(), context: gl, antialias: true });
       renderer.autoClear = false;
-
-      // DRACO 압축 GLTF 로드 (예제 webgl_animation_keyframes와 동일한 로더 구성)
       const draco = new DRACOLoader();
       draco.setDecoderPath('/draco/');
       const loader = new GLTFLoader();
       loader.setDRACOLoader(draco);
-      loader.load(
-        '/models/LittlestTokyo.glb',
-        (gltf) => {
-          const model = gltf.scene;
-          // 모델 원본 ~500유닛 → 0.1배 = 지도상 약 50m 규모 (Y-up 그대로, render의 rotX가 세워줌)
-          model.scale.setScalar(0.1);
-          model.position.set(0, 25, 0); // 바닥이 지면에 오게 살짝 올림 (모델 중심이 원점이라)
-
-          // 모델 = 이름 붙은 부품들의 조립품. F12 콘솔에서 부품 목록 확인 가능
-          if (import.meta.env.DEV) {
-            const names: string[] = [];
-            model.traverse((o) => { if (o.name) names.push(o.name); });
-            console.log('[three-model] 부품 목록:', names);
-          }
-          // 기차(Object675) 참조 저장 — 토글용
-          model.traverse((o) => { if (o.name === 'Object675') tram = o; });
-
-          // 최대한 "집처럼" — 간판/장식/캐릭터/잡물 통째 숨김.
-          // 주의: 이 모델은 `Object078` / `Object078_Plastic_Soft_0` 형태로 부모-자식이 flat 나열됨.
-          // 실제 그려지는 mesh는 자식(`_재질_0`)이라 **prefix 매칭**으로 자식까지 다 잡아야 함.
-          // Object649=건물 본체, Object674=outline(실루엣), Object675=트램 → 유지.
-          const hidePrefixes = [
-            // 옥상 광고판 12개 (Plane 시리즈 = 전부 간판)
-            'Plane001', 'Plane003',
-            'Plane103', 'Plane104', 'Plane105', 'Plane106', 'Plane107',
-            'Plane108', 'Plane109', 'Plane110', 'Plane111', 'Plane112',
-            // 판다 간판/캐릭터/부품
-            'Object078',
-            'body', 'leaf', 'hand1', 'hand2', 'foot1', 'foot2',
-            'ear_05', 'ear2_06',
-            // 전신주 전선 (일본 골목 특징)
-            'wire1', 'wire2', 'wire3', 'wire4', 'wire5', 'wire7',
-            // 옥상 반복 장식/캐릭터
-            'Object706', 'Object707', 'Object708', 'Object709',
-            'Object704', // 옥상 고양이(Plastic_Soft)
-            'Object705', // 옥상 반복 장식 (Material_5516)
-            // 간판 지지대(Plane과 짝지어 나온 것들)
-            'Object687', 'Object688', 'Object697', 'Object698', 'Object699',
-            // 골목 잡물 — 자동차·오토바이 등
-            'Object608', 'Object680', 'Object681', 'Object224',
-            // 나무 간판/문패 후보 (normal 재질) — 무사시노엔 나무 간판·소품 추정
-            'Object682', 'Object332', 'Object081', 'Object531', 'Object532', 'Object689',
-            // 판다·한자 스티커/간판 (알파 재질 서브메시 — Object649는 건물 본체이므로 서브메시만 콕 집어 제거)
-            'Object649_alpha_0',
-            'Object649_alpha_glass_0',
-            'Object649_Material #5511_0',
-            'Object649_Material #5512_0',
-            // 옆에 있는 작은 판다들 (알파 오브젝트 4개)
-            'Object619', 'Object620', 'Object621', 'Object622',
-            // 나무
-            'treezzzzz',
-          ];
-          const shouldHide = (name: string) =>
-            hidePrefixes.some((p) => name === p || name.startsWith(`${p}_`));
-          model.traverse((o) => { if (shouldHide(o.name)) o.visible = false; });
-
-          scene.add(model);
-          mixer = new THREE.AnimationMixer(model);
-          mixer.clipAction(gltf.animations[0]).play();
-          map2?.triggerRepaint();
-        },
-        undefined,
-        (err) => console.warn('[three-model] glb load fail', err),
-      );
+      loader.load('/models/hanil-tube-opt.glb', (gltf) => {
+        const model = gltf.scene;
+        const box = new THREE.Box3().setFromObject(model);
+        const size = new THREE.Vector3();
+        box.getSize(size);
+        model.scale.setScalar(115 / (Math.max(size.x, size.y, size.z) || 1)); // v0.2와 같은 115m
+        const box2 = new THREE.Box3().setFromObject(model);
+        const center = new THREE.Vector3();
+        box2.getCenter(center);
+        model.position.x -= center.x;
+        model.position.z -= center.z;
+        model.position.y -= box2.min.y;
+        scene.add(model);
+        map2?.triggerRepaint();
+      });
     },
     render(_gl, matrix) {
       if (!renderer || !map2) return;
-      // 가까이(줌 14+)에서만 애니메이션 재생 + 연속 렌더 (멀리선 정지 → 지도 idle 허용)
-      const delta = clock.getDelta();
-      if (map2.getZoom() >= 14) {
-        mixer?.update(delta);
-        updateFire(delta); // 항상 호출 — stop() 이후 잔여 파티클이 사라지려면 batchRenderer.update가 계속 돌아야 함
-        map2.triggerRepaint();
-      }
+      if (map2.getZoom() < 15) return; // 멀어지면 그리지 않음(지도 idle 허용)
       const rotX = new THREE.Matrix4().makeRotationAxis(new THREE.Vector3(1, 0, 0), Math.PI / 2);
-      const m = new THREE.Matrix4().fromArray(matrix);
+      const m = new THREE.Matrix4().fromArray(matrix as unknown as number[]);
       const l = new THREE.Matrix4()
         .makeTranslation(t.x, t.y, t.z)
         .scale(new THREE.Vector3(t.scale, -t.scale, t.scale))
@@ -691,7 +446,7 @@ function createModelThreeLayer(lng: number, lat: number): ThreeLayerHandle {
       renderer.resetState();
       renderer.render(scene, camera);
     },
-  };
+  } as mapboxgl.CustomLayerInterface);
 }
 
 /* 특정 시각(오늘 기준 hour)의 Date 객체 */
@@ -953,11 +708,7 @@ export default function App() {
   const regionRef = useRef(''); // 현재 시/도 (moveend 자동감지에서 최신값 참조)
   const syncRegionRef = useRef<() => void>(() => {}); // moveend에서 호출할 최신 자동동기화 콜백
   const declutterRef = useRef<boolean | null>(null); // 라벨 on/off 직전 상태 (중복 토글=깜빡임 방지)
-  const threeRef = useRef<ThreeLayerHandle | null>(null); // Three.js 레이어 제어 (화재/기차 토글)
-  const [fireOn, setFireOn] = useState(true); // 4단계 화재 시뮬레이션 (기본 ON)
-  const [tramOn, setTramOn] = useState(true); // 4단계 기차 애니메이션 (기본 ON)
-  const [panelAzimuth, setPanelAzimuth] = useState(0); // 방위(-90=동·0=남·+90=서)
-  const [panelTilt, setPanelTilt] = useState(30); // 기울기(-90=뒤로·0=수평·+90=앞으로), 한국 표준 30°
+  const [fireOn, setFireOn] = useState(false); // 4단계 화재 경보 시연 (기본 OFF — 화면 붉은 오버레이만)
   const [buildMode, setBuildMode] = useState(false); // 건물 세우기 모드 (4단계)
   const buildModeRef = useRef(false); // 지도 클릭 핸들러가 최신값 참조
   const [buildHeight, setBuildHeight] = useState(25); // 새 건물 높이 (m)
@@ -1011,6 +762,8 @@ export default function App() {
         depthRef.current = d;
         setDepth(d);
       }
+      // 건물이 보일 만큼 들어오면 그때 3D 건물(엔진+모델) 로드 — 그 전엔 아무것도 안 받음
+      if (map.getZoom() >= 15) addBuildingLayerLazy(map, BUGOK_STATION.lng, BUGOK_STATION.lat);
     };
     map.on('zoom', onZoom);
     // 스크롤/이동이 멎으면 지도 중심의 지역을 자동 감지해 표시 동기화 (카메라 안 건드림)
@@ -1134,14 +887,6 @@ export default function App() {
         map.setLanguage('ko'); // 지도 라벨 한글화 (Mapbox 내장 i18n)
       } catch (err) {
         console.warn('[mapbox config]', err);
-      }
-
-      // 부곡 = Three.js GLTF 모델 (커스텀 레이어) — 애니메이션 포함 3D 모델이 지도에 이음새 없이 통합.
-      // (기존 초록 비컨·fill-extrusion 패널 mock은 이 모델로 대체됨. 클릭/선택은 핀 마커가 담당)
-      if (!map.getLayer('three-model')) {
-        const layer = createModelThreeLayer(BUGOK_STATION.lng, BUGOK_STATION.lat);
-        map.addLayer(layer);
-        threeRef.current = layer; // 토글 UI가 이 handle로 화재/기차 제어
       }
 
       // 사용자 배치 건물 — "건물 세우기" 모드에서 클릭/드래그로 세우는 박스 (fill-extrusion)
@@ -1590,11 +1335,6 @@ export default function App() {
 
   }, [hour, status]);
 
-  /* 태양광 패널 각도(양축) → 3D 씬 반영 */
-  useEffect(() => {
-    if (status === 'ready') threeRef.current?.setPanelAngle(panelAzimuth, panelTilt);
-  }, [panelAzimuth, panelTilt, status]);
-
   /* 건물 세우기: 배치 목록 → 지도 소스 반영. 시뮬 ON이면 현재 스텝의 순간 kW로 색칠 */
   useEffect(() => {
     const map = mapRef.current;
@@ -1865,14 +1605,6 @@ export default function App() {
   useEffect(() => {
     regionRef.current = region;
   }, [region]);
-
-  /* 화재/기차 토글 → Three.js 레이어에 반영 (4단계 UI에서만 조작 가능) */
-  useEffect(() => {
-    if (status === 'ready') threeRef.current?.setFireVisible(fireOn);
-  }, [fireOn, status]);
-  useEffect(() => {
-    if (status === 'ready') threeRef.current?.setTramVisible(tramOn);
-  }, [tramOn, status]);
 
   /* 발전소 선택 = 카메라 이동 + 상세 표시 */
   const selectPlant = (p: Plant) => {
@@ -3109,51 +2841,6 @@ export default function App() {
                       className="data-[state=checked]:bg-red-500"
                     />
                   </label>
-                  <label className="flex cursor-pointer items-center justify-between gap-4">
-                    <span className="flex items-center gap-1.5">🚋 기차 운행</span>
-                    <Switch
-                      checked={tramOn}
-                      onCheckedChange={setTramOn}
-                      className="data-[state=checked]:bg-emerald-500"
-                    />
-                  </label>
-                  {/* 태양광 패널 양축 조절 (대칭 -90~+90) — 실제 dual-axis 트래커와 동일 */}
-                  <div className="flex flex-col gap-1.5 border-t border-white/10 pt-2">
-                    <div className="flex items-center justify-between gap-2">
-                      <span className="flex items-center gap-1.5">☀ 방위</span>
-                      <span className="font-mono text-[11px] text-amber-300">{panelAzimuth}°</span>
-                    </div>
-                    <Slider
-                      min={-90}
-                      max={90}
-                      step={1}
-                      value={[panelAzimuth]}
-                      onValueChange={(v) => setPanelAzimuth(v[0])}
-                    />
-                    <div className="flex justify-between text-[9px] text-slate-500">
-                      <span>동 -90</span>
-                      <span>남 0</span>
-                      <span>서 +90</span>
-                    </div>
-                  </div>
-                  <div className="flex flex-col gap-1.5">
-                    <div className="flex items-center justify-between gap-2">
-                      <span className="flex items-center gap-1.5">📐 기울기</span>
-                      <span className="font-mono text-[11px] text-amber-300">{panelTilt}°</span>
-                    </div>
-                    <Slider
-                      min={-90}
-                      max={90}
-                      step={1}
-                      value={[panelTilt]}
-                      onValueChange={(v) => setPanelTilt(v[0])}
-                    />
-                    <div className="flex justify-between text-[9px] text-slate-500">
-                      <span>뒤로 -90</span>
-                      <span>수평 0</span>
-                      <span>앞으로 +90</span>
-                    </div>
-                  </div>
                 </div>
               </div>
             )}

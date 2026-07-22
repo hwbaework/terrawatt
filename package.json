@@ -18,8 +18,7 @@
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
     "suncalc": "^2.0.0",
-    "three": "^0.185.1",
-    "three.quarks": "^0.17.1"
+    "three": "^0.185.1"
   },
   "devDependencies": {
     "@tailwindcss/vite": "^4.1.0",
