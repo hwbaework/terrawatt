@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { PRICE_CARDS_LAND, PRICE_CARDS_JEJU } from '../data/market';
+import { MIcon } from '../lib/MIcon';
 
 /* 1단계 · 단가 패널 — energy-landing(/insight/trend) '단가' 카드 6종을 지도 오버레이로.
    SMP · REC현물 · SMP+1REC · 장기계약 · RE100용 REC · 탄소배출권 + 육지/제주 토글 */
@@ -10,7 +11,9 @@ export function MarketPanel() {
   return (
     <div className="w-64 rounded-xl bg-black/70 px-4 py-3 shadow-xl backdrop-blur">
       <div className="mb-2 flex items-center justify-between gap-2">
-        <span className="text-xs font-bold tracking-wide text-white">💱 단가</span>
+        <span className="flex items-center gap-1 text-xs font-bold tracking-wide text-white">
+          <MIcon name="payments" size={14} className="text-slate-400" /> 단가
+        </span>
         <div className="inline-flex rounded-md bg-white/10 p-0.5">
           {(['육지', '제주'] as const).map((r) => (
             <button
@@ -36,7 +39,7 @@ export function MarketPanel() {
               <span className="ml-auto text-[9px] text-slate-500">{c.date}</span>
             </div>
             <div className="mt-0.5 flex items-baseline justify-between">
-              <span className="font-mono text-sm font-bold text-white">
+              <span className="text-sm font-bold text-white">
                 {c.value} <span className="text-[9px] font-medium text-slate-500">{c.unit}</span>
               </span>
               <span

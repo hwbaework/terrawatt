@@ -15,8 +15,3 @@ export const STAGE_LABEL: Record<Stage, string> = {
   1: '나라',
   2: '건물',
 };
-
-export const STAGE_ICON: Record<Stage, string> = {
-  1: '🌏',
-  2: '🏢',
-};

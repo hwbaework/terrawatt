@@ -8,14 +8,41 @@ import { DRACOLoader } from 'three/examples/jsm/loaders/DRACOLoader.js';
 
 const TARGET_SIZE_M = 40; // 건물 최대 변을 약 40m로 맞춤 (필요 시 조정)
 
+/* ── 배치 조절(TweakPanel용) — 살아있는 건물 레이어를 id로 찾아 밀고/돌린다 ── */
+export interface BuildingHandle {
+  id: string;
+  /** 동쪽(+)/서쪽(-), 북쪽(+)/남쪽(-)으로 미터 단위 이동 */
+  move(eastM: number, northM: number): void;
+  /** 시계방향(+) 회전, 도 단위 */
+  rotate(dDeg: number): void;
+  /** 크기 배율 조절 (1.1 = 10% 크게, 0.9 = 10% 작게) */
+  resize(factor: number): void;
+  state(): { lng: number; lat: number; rotationDeg: number; sizeM: number };
+}
+
+const handles = new Map<string, BuildingHandle>();
+export function getBuildingHandle(id: string): BuildingHandle | undefined {
+  return handles.get(id);
+}
+
 export function createBuildingLayer(
   lng: number,
   lat: number,
   url: string,
-  opts?: { rotationDeg?: number; targetSizeM?: number },
+  opts?: { id?: string; rotationDeg?: number; targetSizeM?: number; natural?: boolean },
 ): mapboxgl.CustomLayerInterface {
-  const origin = mapboxgl.MercatorCoordinate.fromLngLat([lng, lat], 0);
-  const t = { x: origin.x, y: origin.y, z: origin.z, scale: origin.meterInMercatorCoordinateUnits() };
+  let curLng = lng;
+  let curLat = lat;
+  let curRotDeg = opts?.rotationDeg ?? 0;
+  const t = { x: 0, y: 0, z: 0, scale: 0 };
+  const updateOrigin = () => {
+    const origin = mapboxgl.MercatorCoordinate.fromLngLat([curLng, curLat], 0);
+    t.x = origin.x;
+    t.y = origin.y;
+    t.z = origin.z;
+    t.scale = origin.meterInMercatorCoordinateUnits();
+  };
+  updateOrigin();
 
   const camera = new THREE.Camera();
   const scene = new THREE.Scene();
@@ -26,13 +53,59 @@ export function createBuildingLayer(
 
   let renderer: THREE.WebGLRenderer | null = null;
   let map2: mapboxgl.Map | null = null;
+  let modelRef: THREE.Object3D | null = null;
+  let baseMaxDim = 1; // 원본 최대변(스케일 전) — 현재 크기 = baseMaxDim × scale
+
+  const layerId = opts?.id ?? 'v2-building';
+
+  // 바닥이 지면에 오도록 + 수평 중심 정렬 (스케일/회전 바뀔 때마다 다시)
+  const alignModel = (model: THREE.Object3D) => {
+    model.position.set(0, 0, 0);
+    const box = new THREE.Box3().setFromObject(model);
+    const center = new THREE.Vector3();
+    box.getCenter(center);
+    model.position.x -= center.x;
+    model.position.z -= center.z;
+    model.position.y -= box.min.y;
+  };
 
   return {
-    id: 'v2-building',
+    id: layerId,
     type: 'custom',
     renderingMode: '3d',
     onAdd(map, gl) {
       map2 = map;
+
+      // 배치 조절 핸들 등록 — TweakPanel이 이걸로 밀고/돌린다
+      handles.set(layerId, {
+        id: layerId,
+        move(eastM, northM) {
+          curLng += eastM / (111320 * Math.cos((curLat * Math.PI) / 180));
+          curLat += northM / 110574;
+          updateOrigin();
+          map2?.triggerRepaint();
+        },
+        rotate(dDeg) {
+          curRotDeg += dDeg;
+          if (modelRef) {
+            modelRef.rotation.y = (curRotDeg * Math.PI) / 180;
+            alignModel(modelRef);
+          }
+          map2?.triggerRepaint();
+        },
+        resize(factor) {
+          if (!modelRef) return;
+          modelRef.scale.multiplyScalar(factor);
+          alignModel(modelRef);
+          map2?.triggerRepaint();
+        },
+        state: () => ({
+          lng: curLng,
+          lat: curLat,
+          rotationDeg: curRotDeg,
+          sizeM: baseMaxDim * (modelRef?.scale.x ?? 0),
+        }),
+      });
       renderer = new THREE.WebGLRenderer({ canvas: map.getCanvas(), context: gl, antialias: true });
       renderer.autoClear = false;
 
@@ -46,33 +119,37 @@ export function createBuildingLayer(
           const model = gltf.scene;
 
           // 1) 원본 크기 측정 → 목표 크기로 스케일 (모델 단위가 m/cm 제각각이라 자동 맞춤)
+          //    natural=true면 실물 미터 단위로 만든 모델이므로 스케일 안 건드림
           const box = new THREE.Box3().setFromObject(model);
           const size = new THREE.Vector3();
           box.getSize(size);
           const maxDim = Math.max(size.x, size.y, size.z) || 1;
-          model.scale.setScalar((opts?.targetSizeM ?? TARGET_SIZE_M) / maxDim);
+          baseMaxDim = maxDim;
+          if (!opts?.natural) model.scale.setScalar((opts?.targetSizeM ?? TARGET_SIZE_M) / maxDim);
 
           // 2) 회전 (필요 시 정면 맞춤)
-          if (opts?.rotationDeg) model.rotation.y = (opts.rotationDeg * Math.PI) / 180;
+          if (curRotDeg) model.rotation.y = (curRotDeg * Math.PI) / 180;
+          modelRef = model;
 
           // 3) 바닥이 지면에 오도록 + 수평 중심 정렬 (스케일 후 재측정)
-          const box2 = new THREE.Box3().setFromObject(model);
-          const center = new THREE.Vector3();
-          box2.getCenter(center);
-          model.position.x -= center.x;
-          model.position.z -= center.z;
-          model.position.y -= box2.min.y; // 최저점을 지면(y=0)에
+          alignModel(model);
 
           scene.add(model);
 
           if (import.meta.env.DEV) {
-            console.info('[v2-building] loaded. 원본 최대변', maxDim.toFixed(1), '→ scale', model.scale.x.toFixed(4));
+            console.info(`[${opts?.id ?? 'v2-building'}] loaded. 원본 최대변`, maxDim.toFixed(1), '→ scale', model.scale.x.toFixed(4));
           }
           map2?.triggerRepaint();
         },
         undefined,
-        (err) => console.warn('[v2-building] glb load fail', err),
+        (err) => console.warn(`[${opts?.id ?? 'v2-building'}] glb load fail`, err),
       );
+    },
+    onRemove() {
+      handles.delete(layerId);
+      map2 = null;
+      renderer = null;
+      modelRef = null;
     },
     render(_gl, matrix) {
       if (!renderer || !map2) return;
