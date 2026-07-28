@@ -9,13 +9,16 @@ import { BuildingTestPanel } from './panels/BuildingTestPanel';
 import { TweakPanel } from './panels/TweakPanel';
 import { Stage3Overlay } from './panels/Stage3Overlay';
 import { addProvinceLayers, applyProvinceSelection, flyToProvince } from './map/provinces';
-import { addSimpleFlow, stopSimpleFlow, PLANTS } from './map/simpleFlow';
+import { addSimpleFlow, stopSimpleFlow, showPpaRoute, clearPpaRoute, PLANTS } from './map/simpleFlow';
 import { createBuildingLayer } from './map/buildingLayer';
 import { FACILITIES } from './data/facilities';
 import { ESS_READING } from './data/specs';
 import { EssPanel } from './panels/EssPanel';
 import { PlantPanel } from './panels/PlantPanel';
 import { MyPlantsPanel } from './panels/MyPlantsPanel';
+import { MyBuildingPanel } from './panels/MyBuildingPanel';
+import { MonthlyScenarioPanel, type SimView } from './panels/MonthlyScenarioPanel';
+import { fetchDailyWx, dayKwh, type MonthWx, type DayWx } from './data/monthlyScenario';
 
 const TOKEN = import.meta.env.VITE_MAPBOX_TOKEN ?? '';
 mapboxgl.accessToken = TOKEN;
@@ -41,6 +44,20 @@ function AppV2Inner() {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const mapRef = useRef<mapboxgl.Map | null>(null);
   const testMarkerRef = useRef<mapboxgl.Marker | null>(null);
+  const dropPinRef = useRef<(lng: number, lat: number, label: string) => void>(() => {});
+  const myBuildingsRef = useRef<GeoJSON.Feature[]>([]); // 선택된 내 건물들 (여러 동, 스타일 전환 시 복원용)
+  const [myBldCount, setMyBldCount] = useState(0); // 선택된 건물 수 (패널 표시용)
+  const [, setBldTick] = useState(0); // 높이 조절 후 카드 갱신 트리거
+  const [scenario, setScenario] = useState<{
+    rows: MonthWx[];
+    source: 'nasa' | 'fallback';
+    kwp: number;
+  } | null>(null); // 월별 시나리오 — 하단 그래프 패널 데이터
+  const [sim, setSim] = useState<SimView | null>(null); // 시뮬 진행 상태 (매 프레임 갱신)
+  const [simBusy, setSimBusy] = useState(false); // 일별 실측 데이터 불러오는 중
+  const simRafRef = useRef(0);
+  const simTintRef = useRef<HTMLDivElement | null>(null); // 밤낮 틴트 오버레이 (지도 위 반투명 막)
+  const dailyRef = useRef<{ key: string; days: DayWx[] } | null>(null); // 일별 실측 캐시 (위치별)
   const enterBuildingRef = useRef<(name: string, lngLat: [number, number]) => void>(() => {});
   const stageRef = useRef<Stage>(1);
   const [stage, setStage] = useState<Stage>(1);
@@ -142,6 +159,20 @@ function AppV2Inner() {
     map.on('mouseleave', 'kr-prov-fill', onProvLeave);
     map.on('click', 'kr-prov-fill', onProvClick);
 
+    // 지도 우클릭 "딸깍" → 핀 찍기. 우클릭 드래그(회전·기울이기)는 핀 안 찍힘.
+    // Mapbox가 회전 후에도 contextmenu를 발생시키므로(실측), 누른/뗀 지점 거리로 직접 판별
+    let rightDownPt: { x: number; y: number } | null = null;
+    const onRightDown = (ev: MouseEvent) => {
+      if (ev.button === 2) rightDownPt = { x: ev.clientX, y: ev.clientY };
+    };
+    map.getCanvas().addEventListener('mousedown', onRightDown);
+    const onPinClick = (e: mapboxgl.MapMouseEvent) => {
+      const oe = e.originalEvent as MouseEvent;
+      if (rightDownPt && Math.hypot(oe.clientX - rightDownPt.x, oe.clientY - rightDownPt.y) > 5) return; // 드래그였음 → 회전
+      dropPinRef.current(e.lngLat.lng, e.lngLat.lat, '선택 위치');
+    };
+    map.on('contextmenu', onPinClick);
+
     // 스타일 로드마다(최초 + 지도/위성 전환) 커스텀 레이어 재구성
     map.on('style.load', async () => {
       try {
@@ -151,6 +182,38 @@ function AppV2Inner() {
         console.warn('[v2 basemap]', err);
       }
       try {
+        // 내 건물 세우기 — 전체가 아니라 핀 찍은 건물 하나만 3D로 돌출.
+        // bld-pick = 건물 외곽선 조회용 투명 레이어, my-building = 선택된 건물 폴리곤
+        if (!map.getLayer('bld-pick') && map.getSource('composite')) {
+          map.addLayer({
+            id: 'bld-pick',
+            source: 'composite',
+            'source-layer': 'building',
+            type: 'fill',
+            minzoom: 13,
+            paint: { 'fill-opacity': 0 },
+          });
+        }
+        if (!map.getSource('my-building')) {
+          map.addSource('my-building', { type: 'geojson', data: { type: 'FeatureCollection', features: [] } });
+          map.addLayer({
+            id: 'my-building-3d',
+            type: 'fill-extrusion',
+            source: 'my-building',
+            paint: {
+              'fill-extrusion-color': '#3b82f6',
+              'fill-extrusion-height': ['get', 'h'], // 높이(m) — 속성이라 나중에 조절 UI 붙이기 쉬움
+              'fill-extrusion-opacity': 0.85,
+            },
+          });
+          // 스타일 전환(지도↔흑백↔위성) 후에도 선택했던 건물들 유지
+          if (myBuildingsRef.current.length > 0) {
+            (map.getSource('my-building') as mapboxgl.GeoJSONSource).setData({
+              type: 'FeatureCollection',
+              features: myBuildingsRef.current,
+            });
+          }
+        }
         await addProvinceLayers(map);
         // 발전소 노드 + 예시 연결선. 원 클릭 → 3단계 진입, 칩(글자) 클릭 → 정보 카드
         addSimpleFlow(
@@ -191,6 +254,8 @@ function AppV2Inner() {
       map.off('mousemove', 'kr-prov-fill', onProvMove);
       map.off('mouseleave', 'kr-prov-fill', onProvLeave);
       map.off('click', 'kr-prov-fill', onProvClick);
+      map.off('contextmenu', onPinClick);
+      map.getCanvas().removeEventListener('mousedown', onRightDown);
       stopSimpleFlow();
       testMarkerRef.current?.remove();
       if (onEssZoom) map.off('zoom', onEssZoom);
@@ -246,24 +311,232 @@ function AppV2Inner() {
     mapRef.current?.flyTo({ ...BUILDING_VIEW, duration: 1200, essential: true });
   };
 
-  /* 주소/내위치 선택 → 그 지점으로 이동 + 파란 핀 */
-  const handlePick = (lng: number, lat: number, label: string) => {
+  /* 핀 지점의 실제 건물 외곽선을 파란 3D로 토글 (v0.1 파란 건물 스타일).
+     새 건물 = 추가, 이미 선택된 건물 = 해제 — 여러 동 선택 가능. 빈 땅이면 선택 유지.
+     반환: 건물을 찾았는지 (못 찾으면 타일 로드 후 재시도용) */
+  const selectBuildingAt = (lng: number, lat: number): boolean => {
+    const map = mapRef.current;
+    if (!map || !map.getLayer('bld-pick')) return false;
+    const src = map.getSource('my-building') as mapboxgl.GeoJSONSource | undefined;
+    if (!src) return false;
+    const feats = map.queryRenderedFeatures(map.project([lng, lat]), { layers: ['bld-pick'] });
+    if (feats.length === 0) return false;
+    const f = feats[0];
+    // 건물 식별 키 — 타일 피처 id, 없으면 첫 꼭짓점 좌표
+    const g = f.geometry as GeoJSON.Polygon;
+    const key = String(f.id ?? g.coordinates?.[0]?.[0]?.join(','));
+    const cur = myBuildingsRef.current;
+    const idx = cur.findIndex((x) => x.properties?.key === key);
+    if (idx >= 0) {
+      cur.splice(idx, 1); // 이미 선택된 건물 → 해제
+    } else {
+      const h = Number(f.properties?.height) || 15; // 데이터에 높이 없으면 공장 기본 15m
+      cur.push({ type: 'Feature', properties: { h, key }, geometry: f.geometry });
+    }
+    src.setData({ type: 'FeatureCollection', features: cur });
+    setMyBldCount(cur.length);
+    return true;
+  };
+
+  /* 선택한 건물들 높이 조절 (전체 일괄 ±3m) — 최소 6m(단층 공장 수준, 그 이하 건물은 없음) */
+  const MIN_BUILDING_H = 6;
+  const adjustBuildingHeight = (deltaM: number) => {
+    const cur = myBuildingsRef.current;
+    if (cur.length === 0) return;
+    for (const f of cur) {
+      const h = Number(f.properties?.h) || 15;
+      f.properties = { ...f.properties, h: Math.max(MIN_BUILDING_H, h + deltaM) };
+    }
+    (mapRef.current?.getSource('my-building') as mapboxgl.GeoJSONSource | undefined)?.setData({
+      type: 'FeatureCollection',
+      features: cur,
+    });
+    setBldTick((t) => t + 1); // 카드의 높이 표시 갱신용
+  };
+
+  /* 선택한 건물 전부 내리기 (공급 경로도 함께) */
+  /* 월별 시나리오 — 선택한 달의 강수량만큼 지도에 비 내리기 (Mapbox 내장 효과, 추가 용량 없음) */
+  const setMonthRain = (rainMmDay: number | null) => {
+    const map = mapRef.current;
+    if (!map) return;
+    if (rainMmDay == null || rainMmDay < 1.5) {
+      map.setRain(null);
+      return;
+    }
+    const k = Math.min(1, rainMmDay / 7); // 7mm/일(장마급)이면 최대 강도
+    map.setRain({
+      density: 0.3 + k * 0.5,
+      intensity: 0.5 + k * 0.5,
+      color: '#a8adbc',
+      opacity: 0.7,
+      vignette: k * 0.8,
+      'vignette-color': '#464646',
+      direction: [0, 80],
+      'droplet-size': [2.6, 18.2],
+      'distortion-strength': 0.7,
+      'center-thinning': 0,
+    });
+  };
+
+  /* ── 월별 시뮬레이션 엔진 — 하루 재생(해 뜨고 짐) = 실제 1주(일별 실측).
+     하루 24시간을 그 주 일수(7)로 나눠, 진짜 비 온 날 차례에만 비가 내리고
+     그날은 실측 일사량이 낮아 계기판도 실제로 느리게 오른다.
+     지도 밝기는 틴트 오버레이로 — 흑백지도에서도 밤낮이 보인다 ── */
+  const stopSim = () => {
+    cancelAnimationFrame(simRafRef.current);
+    setSim(null);
+    setMonthRain(null);
+    if (simTintRef.current) simTintRef.current.style.opacity = '0';
+  };
+
+  const runSim = async (months: number[]) => {
+    if (!scenario || months.length === 0) return;
+    const { kwp } = scenario;
+    cancelAnimationFrame(simRafRef.current);
+
+    // 일별 실측 365일 — 건물 위치 기준 최초 1회 조회 후 캐시 (위치가 바뀌면 다시)
+    const g = myBuildingsRef.current[0]?.geometry as GeoJSON.Geometry | undefined;
+    const ring =
+      g?.type === 'Polygon' ? g.coordinates[0] : g?.type === 'MultiPolygon' ? g.coordinates[0][0] : null;
+    const lng = ring ? ring.reduce((a, p) => a + p[0], 0) / ring.length : 129.33;
+    const lat = ring ? ring.reduce((a, p) => a + p[1], 0) / ring.length : 35.505;
+    const key = `${lng.toFixed(3)},${lat.toFixed(3)}`;
+    if (dailyRef.current?.key !== key) {
+      setSimBusy(true);
+      const { days } = await fetchDailyWx(lng, lat);
+      dailyRef.current = { key, days };
+      setSimBusy(false);
+    }
+
+    // 선택 기간의 날들을 주(7일) 단위로 묶는다 — 마지막 주는 짧을 수 있음
+    const ordered = months.flatMap((m) => dailyRef.current!.days.filter((d) => d.m === m));
+    const weeks: DayWx[][] = [];
+    for (let i = 0; i < ordered.length; i += 7) weeks.push(ordered.slice(i, i + 7));
+    const weekKwhs = weeks.map((w) => w.reduce((a, d) => a + dayKwh(kwp, d), 0));
+    const total = Math.round(weekKwhs.reduce((a, b) => a + b, 0));
+    if (weeks.length === 0) return;
+
+    const DAY_MS = 1400; // 한 사이클(=실제 1주) 재생 시간
+    // 낮 가중치 w(h)=sin((h-6)/12π) — 계기판이 해를 따라 오르게 하는 곡선
+    const partial = (h: number) => {
+      const x = Math.min(Math.max(h - 6, 0), 12);
+      return (12 / Math.PI) * (1 - Math.cos((x / 12) * Math.PI));
+    };
+    let lastSlot = '';
+    const start = performance.now();
+    const frame = (t: number) => {
+      const f = (t - start) / DAY_MS; // 누적 사이클(소수)
+      const wi = Math.floor(f);
+      if (wi >= weeks.length) {
+        // 완료 — 계기판은 기간 합계로 고정, 비·틴트 해제
+        const lastDay = ordered[ordered.length - 1];
+        setSim({ playing: false, month: lastDay.m, weekN: Math.ceil(lastDay.d / 7), hour: 18, cumKwh: total, rainMm: 0, months });
+        setMonthRain(null);
+        if (simTintRef.current) simTintRef.current.style.opacity = '0';
+        return;
+      }
+      const week = weeks[wi];
+      const h = (f % 1) * 24;
+      // 지금 시각이 그 주의 몇째 날인지 — 비는 그 실제 날에 왔을 때만
+      const slot = Math.min(week.length - 1, Math.floor((h / 24) * week.length));
+      const day = week[slot];
+      const slotKey = `${wi}-${slot}`;
+      if (slotKey !== lastSlot) {
+        lastSlot = slotKey;
+        // 1mm 미만은 맑음 취급, 많이 온 날은 세차게 (setMonthRain 스케일에 맞춤)
+        setMonthRain(day.rainMm >= 1 ? Math.min(7, 1.5 + day.rainMm / 3) : null);
+      }
+      // 누적 발전량 — 지나간 날들 합 + 오늘 진행분(낮 곡선을 따르되, 밤 슬롯은 선형)
+      const s0 = (slot / week.length) * 24;
+      const s1 = ((slot + 1) / week.length) * 24;
+      const denom = partial(s1) - partial(s0);
+      const fracInSlot = denom > 0.05 ? (partial(h) - partial(s0)) / denom : (h - s0) / (s1 - s0);
+      const passed = week.slice(0, slot).reduce((a, d) => a + dayKwh(kwp, d), 0);
+      const cum =
+        weekKwhs.slice(0, wi).reduce((a, b) => a + b, 0) + passed + dayKwh(kwp, day) * Math.max(0, Math.min(1, fracInSlot));
+      // 밤낮 틴트 — 밤엔 짙은 남색, 해 뜰/질 무렵엔 옅은 주황
+      const el = simTintRef.current;
+      if (el) {
+        const d = Math.sin(((h - 6) / 12) * Math.PI); // 태양 고도 근사 (<0 = 밤)
+        if (d <= 0) {
+          el.style.background = '#0a1432';
+          el.style.opacity = String(Math.min(0.5, 0.18 + -d * 0.4));
+        } else if (d < 0.3) {
+          el.style.background = '#ff9640';
+          el.style.opacity = String(0.2 * (1 - d / 0.3));
+        } else {
+          el.style.opacity = '0';
+        }
+      }
+      setSim({
+        playing: true,
+        month: day.m,
+        weekN: Math.ceil(day.d / 7),
+        hour: h,
+        cumKwh: Math.round(cum),
+        rainMm: Math.round(day.rainMm),
+        months,
+      });
+      simRafRef.current = requestAnimationFrame(frame);
+    };
+    simRafRef.current = requestAnimationFrame(frame);
+  };
+
+  const clearBuildings = () => {
+    myBuildingsRef.current = [];
+    setMyBldCount(0);
+    clearPpaRoute();
+    stopSim();
+    setScenario(null);
+    (mapRef.current?.getSource('my-building') as mapboxgl.GeoJSONSource | undefined)?.setData({
+      type: 'FeatureCollection',
+      features: [],
+    });
+  };
+
+  /* 핀 찍기 — 지도 우클릭·주소 검색·내 위치가 공용으로 사용 */
+  const dropPin = (lng: number, lat: number, label: string) => {
     const map = mapRef.current;
     if (!map) return;
     if (!testMarkerRef.current) {
       const el = document.createElement('div');
-      el.style.cssText = 'font-size:30px;filter:drop-shadow(0 3px 5px rgba(0,0,0,.4));';
-      el.textContent = '📍';
+      el.className = 'material-symbols-outlined';
+      el.style.cssText =
+        'font-size:36px;line-height:1;color:#2563eb;filter:drop-shadow(0 3px 5px rgba(0,0,0,.4));user-select:none;';
+      el.textContent = 'pin_drop';
       testMarkerRef.current = new mapboxgl.Marker({ element: el, anchor: 'bottom' });
     }
     testMarkerRef.current.setLngLat([lng, lat]).addTo(map);
     testMarkerRef.current.getElement().title = label;
-    map.flyTo({ center: [lng, lat], zoom: 16, pitch: 45, duration: 1800, essential: true });
+    // 핀 지점 건물 세우기 — 화면 밖/타일 미로드로 못 찾았을 때만 도착 후 한 번 더 (토글이라 중복 실행 금지)
+    if (!selectBuildingAt(lng, lat)) {
+      map.once('idle', () => selectBuildingAt(lng, lat));
+    }
+  };
+  dropPinRef.current = dropPin;
+
+  /* 주소/내위치 선택 → 핀 + 그 지점으로 이동 */
+  const handlePick = (lng: number, lat: number, label: string) => {
+    dropPin(lng, lat, label);
+    mapRef.current?.flyTo({ center: [lng, lat], zoom: 16, pitch: 45, duration: 1800, essential: true });
+  };
+
+  /* [핀으로 이동] — 현재 핀 위치로 카메라 복귀. 핀 없으면 false */
+  const goPin = (): boolean => {
+    const map = mapRef.current;
+    const marker = testMarkerRef.current;
+    if (!map || !marker || !marker.getElement().isConnected) return false;
+    const ll = marker.getLngLat();
+    map.flyTo({ center: [ll.lng, ll.lat], zoom: Math.max(map.getZoom(), 16), pitch: 45, duration: 1400, essential: true });
+    return true;
   };
 
   return (
     <div className="relative h-screen w-screen overflow-hidden bg-slate-900">
       <div ref={containerRef} className="absolute inset-0" style={{ height: '100dvh', width: '100vw' }} />
+
+      {/* 시뮬레이션 밤낮 틴트 — 지도 바로 위 반투명 막 (runSim이 매 프레임 색·농도 조절) */}
+      <div ref={simTintRef} className="pointer-events-none absolute inset-0 z-[5]" style={{ opacity: 0 }} />
 
       {status === 'error' && (
         <div className="absolute inset-0 z-50 flex items-center justify-center bg-slate-900">
@@ -317,7 +590,7 @@ function AppV2Inner() {
           ))}
         </div>
 
-        {/* 지도/위성 토글 */}
+        {/* 지도/위성 토글 + 3D 건물 세우기 */}
         <div className="inline-flex rounded-lg bg-black/60 p-0.5 shadow-lg backdrop-blur">
           {(['map', 'mono', 'satellite'] as Basemap[]).map((b) => (
             <button
@@ -352,7 +625,13 @@ function AppV2Inner() {
 
       {/* 좌하단: 내 건물 위치 테스트 (접기/펴기 + 주소 검색) */}
       <div className="absolute bottom-8 left-4 z-10">
-        <BuildingTestPanel token={TOKEN} onPick={handlePick} />
+        <BuildingTestPanel
+          token={TOKEN}
+          onPick={handlePick}
+          onGoPin={goPin}
+          buildingCount={myBldCount}
+          onClearBuildings={clearBuildings}
+        />
       </div>
 
       {/* 우하단: 3D 건물 배치 조절 (밀기/돌리기 → 좌표 복사) */}
@@ -360,8 +639,8 @@ function AppV2Inner() {
         <TweakPanel />
       </div>
 
-      {/* 좌측 정보 카드들 — 순서: 발전량(발전소) → ESS */}
-      {(essOpen || plantInfo) && (
+      {/* 좌측 정보 카드들 — 순서: 발전량(발전소) → ESS → 내 건물 */}
+      {(essOpen || plantInfo || myBldCount > 0) && (
         <div className="absolute left-4 top-32 z-10 flex flex-col gap-2">
           {plantInfo && (
             <PlantPanel
@@ -371,7 +650,34 @@ function AppV2Inner() {
             />
           )}
           {essOpen && <EssPanel onClose={() => setEssOpen(false)} />}
+          {myBldCount > 0 && (
+            <MyBuildingPanel
+              features={myBuildingsRef.current}
+              onClear={clearBuildings}
+              onAdjustHeight={adjustBuildingHeight}
+              onSelectSupply={(plant, building, via) => void showPpaRoute(plant, building, via)}
+              onClearSupply={clearPpaRoute}
+              onScenario={(rows, source, kwp) => setScenario({ rows, source, kwp })}
+            />
+          )}
         </div>
+      )}
+
+      {/* 하단 중앙: 월별 시뮬레이션 — 왼쪽 카드 붐빔을 피해 가로로 넓게 */}
+      {scenario && myBldCount > 0 && (
+        <MonthlyScenarioPanel
+          rows={scenario.rows}
+          source={scenario.source}
+          kwp={scenario.kwp}
+          sim={sim}
+          busy={simBusy}
+          onRun={(months) => void runSim(months)}
+          onStop={stopSim}
+          onClose={() => {
+            stopSim();
+            setScenario(null);
+          }}
+        />
       )}
 
       {/* 하단 중앙: WorldState 시각 */}

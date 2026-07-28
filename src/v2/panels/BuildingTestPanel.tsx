@@ -18,7 +18,7 @@ declare global {
         oncomplete: (data: DaumPostcodeData) => void;
         width?: string;
         height?: string;
-      }) => { embed: (el: HTMLElement) => void };
+      }) => { embed: (el: HTMLElement, opts?: { q?: string }) => void };
     };
   }
 }
@@ -75,13 +75,21 @@ async function searchKakao(q: string): Promise<GeoResult[]> {
 export function BuildingTestPanel({
   token,
   onPick,
+  onGoPin,
+  buildingCount,
+  onClearBuildings,
 }: {
   token: string;
   onPick: (lng: number, lat: number, label: string) => void;
+  /** 현재 핀 위치로 카메라 이동. 핀이 없으면 false 반환 */
+  onGoPin: () => boolean;
+  /** 선택된(세워진) 건물 수 */
+  buildingCount: number;
+  /** 선택한 건물 전부 내리기 */
+  onClearBuildings: () => void;
 }) {
   const [open, setOpen] = useState(true);
   const [query, setQuery] = useState('');
-  const [results, setResults] = useState<GeoResult[]>([]);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState('');
   const [postcodeOpen, setPostcodeOpen] = useState(false);
@@ -103,32 +111,15 @@ export function BuildingTestPanel({
     }));
   };
 
-  /* 입력창 Enter — 빠른 검색(후보 목록 표시) */
-  const search = async () => {
-    const q = query.trim();
-    if (!q) {
-      setPostcodeOpen(true); // 비어 있으면 주소검색 팝업으로
-      return;
-    }
-    setBusy(true);
-    setErr('');
-    setResults([]);
-    try {
-      const list = await geocode(q);
-      if (list.length === 0) setErr('결과가 없어요. 다른 주소로 시도해 보세요.');
-      setResults(list);
-    } catch {
-      setErr('검색 중 오류가 발생했어요.');
-    } finally {
-      setBusy(false);
-    }
+  /* 입력창 Enter = [검색] 버튼과 동일 — 주소검색 팝업이 입력값으로 미리 검색된 채 열림 */
+  const search = () => {
+    setPostcodeOpen(true);
   };
 
   /* 우편번호 팝업에서 주소 선택 → 좌표 변환 → 바로 지도 이동 */
   const pickByAddress = async (addr: string) => {
     setBusy(true);
     setErr('');
-    setResults([]);
     try {
       const list = await geocode(addr);
       if (list.length > 0) onPick(list[0].lng, list[0].lat, addr);
@@ -157,7 +148,7 @@ export function BuildingTestPanel({
           },
           width: '100%',
           height: '100%',
-        }).embed(postcodeBoxRef.current);
+        }).embed(postcodeBoxRef.current, { q: query.trim() || undefined }); // 입력해둔 주소로 미리 검색
       })
       .catch(() => {
         setErr('주소 검색 창을 불러오지 못했어요.');
@@ -227,32 +218,47 @@ export function BuildingTestPanel({
 
           {err && <p className="mt-2 text-[11px] text-red-500">{err}</p>}
 
-          {/* 검색 결과 */}
-          {results.length > 0 && (
-            <div className="mt-2 flex flex-col overflow-hidden rounded-lg border border-slate-200">
-              {results.map((r, i) => (
-                <button
-                  key={i}
-                  type="button"
-                  onClick={() => onPick(r.lng, r.lat, r.label)}
-                  className="border-b border-slate-100 px-3 py-2 text-left text-[12px] text-slate-700 transition-colors last:border-0 hover:bg-slate-50"
-                >
-                  {r.label}
-                </button>
-              ))}
+          {/* 핀 관련 버튼 — 핀 옮기기는 지도 클릭이 담당 */}
+          <div className="mt-3 flex gap-1.5">
+            <button
+              type="button"
+              onClick={useMyLocation}
+              disabled={busy}
+              className="flex flex-1 items-center justify-center gap-1 rounded-lg bg-blue-600 px-3 py-2.5 text-sm font-bold text-white transition-colors hover:bg-blue-700 disabled:opacity-50"
+            >
+              <MIcon name="pin_drop" size={16} />
+              {busy ? '찾는 중…' : '내 위치'}
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                setErr('');
+                if (!onGoPin()) setErr('아직 핀이 없어요 — 지도를 클릭하거나 주소를 검색해 보세요.');
+              }}
+              className="flex flex-1 items-center justify-center gap-1 rounded-lg bg-slate-700 px-3 py-2.5 text-sm font-bold text-white transition-colors hover:bg-slate-600"
+            >
+              <MIcon name="search" size={16} />
+              핀으로 이동
+            </button>
+          </div>
+          {/* 선택된 건물 현황 — 우클릭 토글로 여러 동 선택 */}
+          {buildingCount > 0 && (
+            <div className="mt-2 flex items-center justify-between rounded-lg bg-blue-50 px-2.5 py-1.5">
+              <span className="flex items-center gap-1 text-[11px] font-semibold text-blue-700">
+                <MIcon name="factory" size={14} />
+                건물 {buildingCount}동 선택됨
+              </span>
+              <button
+                type="button"
+                onClick={onClearBuildings}
+                className="text-[11px] font-semibold text-slate-400 transition-colors hover:text-slate-700"
+              >
+                지우기
+              </button>
             </div>
           )}
-
-          <button
-            type="button"
-            onClick={useMyLocation}
-            disabled={busy}
-            className="mt-3 w-full rounded-lg bg-blue-600 px-4 py-2.5 text-sm font-bold text-white transition-colors hover:bg-blue-700 disabled:opacity-50"
-          >
-            {busy ? '찾는 중…' : '내 위치로 테스트하기'}
-          </button>
           <p className="mt-2 text-center text-[10px] text-slate-400">
-            지도를 클릭하거나 주소로 잡을 수도 있어요
+            우클릭 = 건물 선택/해제 · 여러 동 가능
           </p>
         </div>
       )}
