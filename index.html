@@ -9,6 +9,27 @@
     <meta property="og:description" content="Mapbox GL JS 기반 3D 에너지 지도 — 태양 고도 시뮬레이션, 날씨 효과, 송배전망 시각화" />
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable-dynamic-subset.min.css" />
     <title>TerraWatt · 3D Energy Grid Explorer</title>
+
+    <!--
+      브이월드 웹지엘 3D지도 API 3.0 로더.
+
+      ⚠️ **여기(HTML)에 정적으로 있어야만 동작한다.** 리액트에서 나중에 끼워넣으면
+         로더는 실행되지만 vw 객체가 끝내 안 생긴다(로더 내부가 옛날 document.write 방식).
+         그래서 v0.3의 3D 화면은 이 태그에 의존한다.
+
+      키·도메인은 Vite가 .env 값으로 치환한다:
+        VITE_VWORLD_KEY / VITE_VWORLD_DOMAIN (개발=localhost, 배포=실제 도메인)
+      __vwNet 은 "네트워크에서 받아졌는지"를 남겨 원인 판별(차단 vs 실행실패)에 쓴다.
+    -->
+    <script>
+      window.__vwNet = 'pending';
+    </script>
+    <script
+      type="text/javascript"
+      src="https://map.vworld.kr/js/webglMapInit.js.do?version=3.0&apiKey=%VITE_VWORLD_KEY%&domain=%VITE_VWORLD_DOMAIN%"
+      onload="window.__vwNet='ok'"
+      onerror="window.__vwNet='blocked'"
+    ></script>
   </head>
   <body>
     <div id="root"></div>

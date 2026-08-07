@@ -19,6 +19,7 @@ import { MyPlantsPanel } from './panels/MyPlantsPanel';
 import { MyBuildingPanel } from './panels/MyBuildingPanel';
 import { MonthlyScenarioPanel, type SimView } from './panels/MonthlyScenarioPanel';
 import { fetchDailyWx, dayKwh, type MonthWx, type DayWx } from './data/monthlyScenario';
+import { VersionSwitch } from '../VersionSwitch';
 
 const TOKEN = import.meta.env.VITE_MAPBOX_TOKEN ?? '';
 mapboxgl.accessToken = TOKEN;
@@ -554,12 +555,7 @@ function AppV2Inner() {
             </div>
             <div className="mt-0.5 text-[10px] text-slate-400">에너지 자급자족 디지털트윈</div>
           </div>
-          <div className="flex flex-col items-end gap-1">
-            <span className="rounded bg-emerald-500/20 px-1.5 py-0.5 text-[9px] font-bold text-emerald-300">v0.2</span>
-            <a href="?v=1" className="text-[9px] text-slate-500 underline-offset-2 transition-colors hover:text-slate-300 hover:underline">
-              v0.1 보기
-            </a>
-          </div>
+          <VersionSwitch />
         </div>
         {/* 내 발전소 바로가기 — 클릭 → 건물 코앞까지 이동 + 정보 카드(발전량 → ESS) */}
         <MyPlantsPanel

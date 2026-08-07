@@ -12,6 +12,11 @@ export default defineConfig(({ mode }) => {
       chunkSizeWarningLimit: 2000, // mapbox-gl 번들이 큼 — 경고만 억제
     },
     server: {
+      // 개발 서버 주소 고정 — 브이월드 인증키에 등록한 주소(http://localhost:5173)와 반드시 일치해야 한다.
+      // strictPort: 포트가 이미 쓰이고 있으면 다른 번호로 옮겨가지 말고 **에러를 내라**.
+      // (조용히 5174 등으로 바뀌면 브이월드가 등록 안 된 주소로 보고 지도를 안 준다)
+      port: 5173,
+      strictPort: true,
       proxy: energyApi
         ? {
             // 발전소 실시간 데이터 — 브라우저 CORS 회피용 dev 프록시

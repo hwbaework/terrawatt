@@ -1,4 +1,45 @@
-@import 'tailwindcss';
+/* Tailwind를 세 조각으로 나눠 불러온다 — **유틸리티만 레이어 밖으로** 꺼내기 위해서.
+
+   왜: 브이월드 3D 엔진이 실행 중에 자기 CSS 6개를 밀어넣는데, 그건 레이어 밖 스타일이다.
+       CSS 규칙상 **레이어 밖 > 레이어 안**(구체성과 무관)이라, 브이월드의 `button { padding:0 }`
+       같은 전역 리셋이 우리 Tailwind 클래스를 전부 이겨서 UI가 눌려 보였다.
+       유틸리티를 레이어 밖으로 두면 클래스(0,1,0) > 요소(0,0,1) 로 정상 판정된다.
+
+   theme/preflight는 레이어에 그대로 둔다 — 브이월드 자체 UI는 자기 스타일을 쓰게 두는 편이 낫다. */
+@layer theme, base;
+@import 'tailwindcss/theme.css' layer(theme);
+@import 'tailwindcss/preflight.css' layer(base);
+@import 'tailwindcss/utilities.css';
+
+/* 숫자 입력칸의 브라우저 기본 스피너(위·아래 화살표) 제거 — 값은 직접 입력한다.
+   input type=number 전부에 적용. */
+input[type='number'] {
+  -moz-appearance: textfield;
+  appearance: textfield;
+}
+input[type='number']::-webkit-outer-spin-button,
+input[type='number']::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+
+/* 인쇄(PDF 저장) — 발전량 보고서(.print-doc)만 남기고 지도·앱 UI는 모두 숨긴다.
+   window.print() 를 부르면 이 규칙으로 A4 문서 한 장만 인쇄된다. */
+@media print {
+  body * {
+    visibility: hidden;
+  }
+  .print-doc,
+  .print-doc * {
+    visibility: visible;
+  }
+  .print-doc {
+    position: absolute;
+    left: 0;
+    top: 0;
+    width: 100%;
+  }
+}
 
 html,
 body,
@@ -33,4 +74,35 @@ body,
   -webkit-font-smoothing: antialiased;
   font-variation-settings: 'FILL' 0, 'wght' 500, 'GRAD' 0, 'opsz' 24;
   user-select: none;
+}
+
+/* 오른쪽에서 밀려 나오는 정보 패널(노션 사이드 뷰 방식) */
+@keyframes slideInRight {
+  from {
+    transform: translateX(100%);
+    opacity: 0.6;
+  }
+  to {
+    transform: translateX(0);
+    opacity: 1;
+  }
+}
+
+/* ── 브이월드 3D 엔진이 스스로 붙이는 UI 정리 (v0.3) ──────────────────────────
+   엔진을 띄우면 오른쪽에 자기 조작 UI가 통째로 딸려 온다. 우리 UI와 겹치고 톤도 달라서 감춘다.
+   마우스 휠 확대/축소와 드래그 회전은 그대로 동작한다 (버튼만 감추는 것).
+
+     .dt-api-map--tool-btns  = 나침반·현재위치
+     #naviTopPannel3d        = 확대/축소 + 거리·면적·높이 측정·초기화
+     #naviBottomPannel3d     = 상하좌우 이동 컨트롤
+
+   되살리고 싶으면 해당 줄만 지우면 된다. 개별 버튼만 살릴 수도 있다:
+     .dt-api-map--tool-bt-compass(나침반) / -current(현재위치) / -max(초기화면)
+     / -length(거리) / -area(면적) / -height(높이) / -reset(초기화)
+
+   ⚠️ 브이월드 로고·출처 표기는 **지우지 않는다** — 공간정보 오픈플랫폼 이용 조건이다. */
+#vmap .dt-api-map--tool-btns,
+#vmap #naviTopPannel3d,
+#vmap #naviBottomPannel3d {
+  display: none !important;
 }
