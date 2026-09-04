@@ -43,12 +43,12 @@ export function Drawer({
                 <MIcon name="chevron_right" size={16} />
               </button>
             )}
-            <h2 className="truncate text-[15px] font-extrabold text-white">{title}</h2>
+            <h2 className="truncate text-[17px] font-extrabold text-white">{title}</h2>
             {badge && (
-              <span className="shrink-0 rounded bg-white/10 px-1.5 py-0.5 text-[9px] text-slate-400">{badge}</span>
+              <span className="shrink-0 rounded bg-white/10 px-1.5 py-0.5 text-[11px] text-slate-400">{badge}</span>
             )}
           </div>
-          {subtitle && <div className="mt-1.5 text-[10px] leading-relaxed text-slate-400">{subtitle}</div>}
+          {subtitle && <div className="mt-1.5 text-[12px] leading-relaxed text-slate-400">{subtitle}</div>}
         </div>
         <button
           type="button"
@@ -64,11 +64,11 @@ export function Drawer({
   );
 }
 
-/** 구역 제목 + 내용 */
+/** 구역 제목 + 내용 — 글자 크기는 어르신도 읽게 키워 둔다(2026-08-24 사용자 지적: 너무 작아 안 보임) */
 export function Section({ title, children }: { title: string; children: ReactNode }) {
   return (
     <section className="border-t border-white/[0.07] px-5 py-4">
-      <h3 className="mb-2 text-[10px] font-bold uppercase tracking-wider text-slate-500">{title}</h3>
+      <h3 className="mb-2.5 text-[12px] font-bold tracking-wide text-slate-400">{title}</h3>
       {children}
     </section>
   );
@@ -93,9 +93,9 @@ export function ActionButton({ label, onClick }: { label: string; onClick: () =>
 /** 값 한 줄 — 라벨 왼쪽, 값 오른쪽 */
 export function Row({ label, children }: { label: string; children: ReactNode }) {
   return (
-    <div className="flex items-baseline justify-between gap-4 py-[7px]">
-      <span className="shrink-0 text-[11px] text-slate-400">{label}</span>
-      <span className="text-right text-[12px] font-bold text-slate-100">{children}</span>
+    <div className="flex items-baseline justify-between gap-4 py-2">
+      <span className="shrink-0 text-[13px] text-slate-400">{label}</span>
+      <span className="text-right text-[14px] font-bold text-slate-100">{children}</span>
     </div>
   );
 }

@@ -55,9 +55,19 @@ export interface Ws3dLike {
     objectManager?: {
       removeGeometryById?(id: string): void;
     };
+    entities?: {
+      add(e: unknown): unknown;
+      remove(e: unknown): boolean;
+    };
     scene?: {
       canvas?: unknown;
       pick(pos: unknown): unknown;
+      /** 변화가 있을 때만 그리는 모드라, 값을 바꾼 뒤엔 이걸 불러 다시 그리게 한다 */
+      requestRender?(): void;
+      globe?: {
+        /** 그 지점의 지형 고도(해발 m). 지형이 아직 안 내려왔으면 undefined */
+        getHeight?(c: unknown): number | undefined;
+      };
       /** 화면에 올라간 것들 — 브이월드 건물 타일셋을 여기서 찾는다 */
       primitives?: { length: number; get(i: number): unknown };
       /** 마우스로 카메라를 어디까지 움직일 수 있는지 정하는 곳 */
@@ -280,5 +290,39 @@ export function startVworldMap(containerId: string, cam: CameraSpec): VwMap | nu
   map.setLogoVisible(true);
   map.setNavigationZoomVisible(true);
   map.start();
+  keepEngineSized(containerId);
   return map;
+}
+
+/* ── 엔진 크기 자가복구 ──
+   증상(실제 발생): 창 크기가 바뀌는 순간(개발자도구 열고 닫기, 창 최대화 등)을 엔진이 놓치면
+   캔버스가 옛 크기로 굳는다 — 화면 위쪽 조각에만 지도가 그려지고 나머지는 검게 남고,
+   브이월드 하단 안내줄도 화면 중간에 떠 버린다.
+   대책: 컨테이너와 캔버스 크기를 지켜보다가 어긋나면 래퍼들을 100%로 펴고 resize 이벤트를
+   다시 쏴서 엔진이 크기를 다시 읽게 한다. */
+let sizeWatchOn = false;
+function keepEngineSized(containerId: string) {
+  if (sizeWatchOn) return; // 엔진은 페이지당 하나 — 감시도 하나면 된다
+  const box = document.getElementById(containerId);
+  if (!box) return;
+  sizeWatchOn = true;
+
+  const fix = () => {
+    const canvas = box.querySelector('canvas');
+    if (!canvas) return;
+    const dw = Math.abs(canvas.clientWidth - box.clientWidth);
+    const dh = Math.abs(canvas.clientHeight - box.clientHeight);
+    if (dw <= 2 && dh <= 2) return; // 정상
+    // 브이월드가 캔버스를 감싸둔 래퍼가 픽셀 크기로 굳어 있을 수 있어 컨테이너까지 전부 편다
+    let el: HTMLElement | null = canvas;
+    while (el && el !== box) {
+      el.style.width = '100%';
+      el.style.height = '100%';
+      el = el.parentElement;
+    }
+    window.dispatchEvent(new Event('resize')); // 엔진(Cesium)이 크기를 다시 읽는 계기
+  };
+
+  new ResizeObserver(fix).observe(box);
+  window.setInterval(fix, 2000); // ResizeObserver가 못 잡는 경우 대비한 뒷단속
 }

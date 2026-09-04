@@ -30,10 +30,19 @@ const CLIP_SIZE_M = 170;
 export function VWorld3DView({
   bindHome,
   onSelect,
+  onSelectAsset,
+  onQuickAction,
+  onOpenView,
 }: {
   bindHome: (fn: () => void) => void;
   /** 건물을 클릭하면 시설 id를 알려준다 */
   onSelect: (facilityId: string) => void;
+  /** 콜아웃 패널의 바로가기(시뮬·화재·지진·침수) — AppV3 의 패널 전환으로 연결(2026-08-26) */
+  onQuickAction?: (action: 'gen' | 'fire' | 'quake' | 'flood' | 'predict') => void;
+  /** 콜아웃의 뷰 그림(구조·모니터링) — 지도 가운데 뷰 팝업으로 연결 */
+  onOpenView?: (view: 'graph') => void;
+  /** 예정 자산(수소·ORC·ESS·V2G) 이름표를 클릭하면 자산 id를 알려준다 */
+  onSelectAsset: (assetId: string) => void;
 }) {
   const mapRef = useRef<VwMap | null>(null);
   const [status, setStatus] = useState<EngineStatus>({ state: 'loading' });
@@ -50,7 +59,7 @@ export function VWorld3DView({
       }
       const homeCam = {
         lng: HOME.lng,
-        lat: HOME.lat,
+        lat: HOME.camLat, // 건물 좌표가 아니라 **조준점**(남쪽 45m) — 건물 덩어리가 화면 정중앙에 오게
         altitude: HOME.altitude,
         tiltDeg: HOME.tiltDeg,
       };
@@ -142,8 +151,10 @@ export function VWorld3DView({
       {/* 브이월드 엔진이 그리는 자리 */}
       <div id="vmap" style={{ height: '100dvh', width: '100vw' }} />
 
-      {/* 건물 위 이름표 — 누르면 시설 정보가 열린다 */}
-      {status.state === 'ready' && placedCount > 0 && <FacilityLabels onSelect={onSelect} />}
+      {/* 건물 위 이름표 — 누르면 시설 정보가 열린다 (예정 자산 이름표 포함) */}
+      {status.state === 'ready' && placedCount > 0 && (
+        <FacilityLabels onSelect={onSelect} onSelectAsset={onSelectAsset} onQuickAction={onQuickAction} onOpenView={onOpenView} />
+      )}
 
       {status.state === 'loading' && (
         <div className="absolute inset-0 z-20 flex items-center justify-center bg-slate-950/80 text-sm text-slate-400">

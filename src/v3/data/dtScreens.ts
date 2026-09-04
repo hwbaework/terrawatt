@@ -182,21 +182,22 @@ export const DT_SCREENS: DtScreen[] = [
     summary: '설비가 언제 고장 날지 미리 본다',
     groups: [
       {
-        title: '실시간 전기 데이터',
+        /* 출처 재확정(2026-08-26) — ITS v1.2 명세: 수집 1초 내외(grp0), 외부 조회 10초 이상 */
+        title: '실시간 전기 데이터 (DX 전기설비)',
         items: [
-          { label: '전류', unit: 'A', source: '스마트센서', period: '0.1초', status: 'waiting' },
-          { label: '전압', unit: 'V', source: '스마트센서', period: '0.1초', status: 'waiting' },
-          { label: '전력', unit: 'kW', source: '스마트센서', period: '0.1초', status: 'waiting' },
-          { label: '전력량', unit: 'kWh', source: '스마트센서', period: '0.1초', status: 'waiting' },
+          { label: '전류 R/S/T', unit: 'A', source: 'DX API-003 current_rst', period: '10초', status: 'waiting' },
+          { label: '전압 R/S/T', unit: 'V', source: 'DX API-003 voltage_rst', period: '10초', status: 'waiting' },
+          { label: '전력', unit: 'W', source: 'DX API-003 active_power', period: '10초', status: 'waiting' },
+          { label: '역률·주파수', source: 'DX API-003 power_factor·frequency', period: '10초', status: 'waiting' },
         ],
       },
       {
+        /* 잔여수명·정비 이상 시기 예측은 뺐다(2026-08-26) — API 명세에 소스가 없어 사용할 수 없는 데이터.
+           Health Index 추세로 파생 가능해지면 그때 되살린다 */
         title: 'AI 분석 결과',
         items: [
-          { label: '건전성 지수 (Health Index)', source: 'AI 분석', status: 'waiting' },
-          { label: '잔여수명', unit: '개월', source: 'AI 분석', status: 'waiting' },
-          { label: '정비 이상 시기 예측', source: 'AI 분석', status: 'waiting' },
-          { label: '설비별 위험성 등급', source: 'AI 분석', status: 'waiting', note: '사전 차단 상태 포함' },
+          { label: '건전성 지수 (Health Index)', source: 'DX API-003 health', period: '10초', status: 'waiting', note: 'peak/mean/area 통계' },
+          { label: '설비별 위험성 등급', source: 'DX API-006 riskLevel', period: '1분', status: 'waiting', note: 'normal/caution/warning' },
         ],
       },
       {
@@ -211,7 +212,10 @@ export const DT_SCREENS: DtScreen[] = [
     ],
   },
 
-  /* ── ② 안전예방·화재 ── */
+  /* ── ② 안전예방·화재 ──
+        ★ 2026-08-26 재정리: ITS_울산_에자자_수집데이터_API_명세서_v1.2 로 **실제 받을 수 있는 값**과
+          아닌 것을 갈랐다. 과열·전기 징후 = DX 전기설비(API-003/005), 판정 = DX 안전지수(API-006/007).
+          열화상 카메라·연기 감지는 명세에 없다 — 별도 센서 도입 전엔 못 받는 값이라 그렇게 표기. ── */
   {
     id: 'safety',
     name: '안전·화재 DiSOP',
@@ -220,29 +224,29 @@ export const DT_SCREENS: DtScreen[] = [
     summary: '과열·연기·누수를 미리 잡는다',
     groups: [
       {
-        title: '과열 감지',
+        title: '과열·전기 징후 (DX 전기설비)',
         items: [
-          { label: '열화상 데이터', unit: '℃', source: '열화상 카메라', status: 'waiting' },
-          { label: '태양광 셀 열화 상태', source: '열화상 카메라', status: 'waiting' },
-          { label: '접속함 상태', source: '열화상 카메라', status: 'waiting' },
-          { label: '인버터 상태', source: '열화상 카메라', status: 'waiting' },
+          { label: '설비 온도', unit: '℃', source: 'DX 스마트센서 API-003 temperature', period: '10초', status: 'waiting' },
+          { label: '누설전류', unit: 'A', source: 'DX 스마트센서 API-003 ground_current', period: '10초', status: 'waiting', note: '누전 = 전기화재 전조' },
+          { label: '고조파 THD', unit: '%', source: 'DX 스마트센서 API-003 thdi', period: '10초', status: 'waiting', note: '아크·열화 징후' },
+          { label: '전류 불평형', unit: '%', source: 'DX 스마트센서 API-003 current_unbalance', period: '10초', status: 'waiting' },
         ],
       },
       {
-        title: '화재·누출',
+        title: '화재징후 판정 (DX 안전지수)',
         items: [
-          { label: '연기 감지', source: '화재감지 센서', status: 'waiting' },
-          { label: '연료전지 수소 누수', source: '가스 감지 센서', status: 'waiting', note: '설비 도입 시' },
-          { label: '화재징후 예측', source: 'AI 분석', status: 'waiting' },
+          { label: '전기안전지수', source: 'DX API-006 safetyIndex', period: '1분', status: 'waiting', note: '0~100' },
+          { label: '위험 등급', source: 'DX API-006 riskLevel', period: '1분', status: 'waiting', note: 'normal/caution/warning' },
+          { label: '항목별 위험', source: 'DX API-006 risks', period: '1분', status: 'waiting', note: '전류·전압·누설·고조파·온도·전력품질' },
+          { label: '판정 근거', source: 'DX API-006 reason', period: '1분', status: 'waiting' },
+          /* 어느 AI가 내린 판정인지 — 문의·대응 시 "누가 왜 그렇게 판단했나"를 말할 수 있게(2026-08-31 사용자) */
+          { label: '판정 모델', source: 'DX API-006 modelName·modelVersion', status: 'waiting', note: 'umei_integrated_safety 등 3종' },
         ],
       },
-      {
-        title: '관제',
-        items: [
-          { label: '시설물 관제 상태', source: '관제 시스템', status: 'waiting' },
-          { label: '이벤트 통지', source: '관제 시스템', status: 'waiting' },
-        ],
-      },
+      /* ⚠️ 화면에서 뺀 항목(2026-08-26 사용자 확정 — "데이터가 없으면 사용할 수 없는 데이터"):
+           열화상(셀·접속함·인버터) / 연기 감지 / 연료전지 수소 누수.
+           사업계획서 #16에는 있으나 API 명세(v1.2)에 데이터 소스가 없다(전 시트 전수 검색 0건).
+           센서·API 경로가 확정되면 그때 항목으로 되살린다 — 아이티공간에 공급 경로 확인 필요. */
     ],
   },
 

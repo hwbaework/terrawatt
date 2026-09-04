@@ -8,17 +8,10 @@
    `confirmed: false` = 아직 계약서/고지서로 확정하지 않은 값. 화면에 그렇게 표시된다. */
 
 export interface FacilitySpec {
-  /** 디지털트윈 모델 식별자 — 화면 상단 배지 */
-  dtModel: string;
   type: string;
   address: string;
   /** 계약전력 (kW) */
   contractKw?: number;
-  /** 공급 방식 — 직접 PPA / 제3자 PPA */
-  supply?: string;
-  /** PPA 단가 (원/kWh) + 적용 시작 */
-  ppaPriceKrwKwh?: number;
-  ppaPriceFrom?: string;
   /** 계약상 재생에너지 비율(%) */
   rePercent?: number;
   status?: string;
@@ -30,13 +23,9 @@ export interface FacilitySpec {
 
 export const FACILITY_SPECS: Record<string, FacilitySpec> = {
   'hanil-tube': {
-    dtModel: 'dt:model:haniltube',
-    type: '수용가 공장 (지붕태양광)',
+    type: '자가소비',
     address: '울산광역시 남구 사평로 203 (부곡동)',
     contractKw: 1200,
-    supply: 'PPA (발전량 × 단가)',
-    ppaPriceKrwKwh: 92.6,
-    ppaPriceFrom: '2026.4~',
     rePercent: 18.7,
     status: '가동 중',
     reTargetPercent: 30,
@@ -54,27 +43,50 @@ export interface InverterSpec {
   id: string;
   /** 정격 용량(kW) */
   ratedKw: number;
+  /** 결선된 모듈 수(장) — 도면 INVERTER 구성 실측 */
+  modules: number;
+}
+
+export interface ModuleSpec {
+  /** 모델명 */
+  model: string;
+  /** 장당 출력(Wp) */
+  wp: number;
+  /** 실측 치수 L×H×D (mm) */
+  sizeMm: [number, number, number];
 }
 
 export interface PlantSpec {
   /** 설비 용량(kW) */
   capacityKw: number;
   type: string;
+  /** 인버터 모델명 — 4대 동일 */
+  inverterModel: string;
   inverters: InverterSpec[];
+  /** 태양전지 모듈 스펙 */
+  module: ModuleSpec;
   /** LASEE 수집 주기 안내 */
   collectPeriod: string;
 }
 
 export const PLANT_SPECS: Record<string, PlantSpec> = {
   'hanil-tube': {
+    // ★ 429.44kW — 사용자 재확정(2026-08-24 최종). 한때 건물 목록표의 99.84로 고쳤다가 되돌림
+    //   (99.84는 한일튜브 전체 용량이 아니었음). 인버터 110kW×4(=440)와도 앞뒤가 맞는다
     capacityKw: 429.44,
     type: '태양광',
+    /* ★ 도면 실측(한일튜브 태양광_(02.06).pdf, 2026-08-31 확인):
+         INVERTER 구성 = ASW110K-LT 110kW × 4대, 모듈 168/168/168/167장(합 671장 = 429.44kWp)
+         태양전지모듈 = S-Energy 640W (L2,465 × H1,133 × D30mm)
+       화재 피해·예지보전 등 여러 화면이 이 값을 공유한다 — 여기만 고치면 전부 따라온다 */
+    inverterModel: 'ASW110K-LT',
     inverters: [
-      { id: 'INV-001', ratedKw: 110 },
-      { id: 'INV-002', ratedKw: 110 },
-      { id: 'INV-003', ratedKw: 110 },
-      { id: 'INV-004', ratedKw: 110 },
+      { id: 'INV-001', ratedKw: 110, modules: 168 },
+      { id: 'INV-002', ratedKw: 110, modules: 168 },
+      { id: 'INV-003', ratedKw: 110, modules: 168 },
+      { id: 'INV-004', ratedKw: 110, modules: 167 },
     ],
+    module: { model: 'S-Energy 640W', wp: 640, sizeMm: [2465, 1133, 30] },
     collectPeriod: 'LASEE 60초 간격',
   },
 };

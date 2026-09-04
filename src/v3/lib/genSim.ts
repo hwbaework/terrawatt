@@ -6,6 +6,8 @@
      · PR 0.8 = 태양광 업계 표준 종합효율(인버터 손실·오염·온도 손실 포함)
    지어내는 숫자 없음 — 조건이 같으면 결과가 같다. */
 
+import { SELF_TARIFF } from './bizSim';
+
 /** 종합효율 (Performance Ratio) */
 export const PR = 0.8;
 /** 일사량 기준 연도 — 마지막으로 1년 치가 다 있는 해 */
@@ -57,8 +59,12 @@ export interface GenSimResult extends GenForecast {
 
 export const totalKwh = (rows: MonthForecast[]) => rows.reduce((s, r) => s + r.kwh, 0);
 
-/** 예상 수익(원) = 발전량 × PPA 단가. PPA로 판매·정산되는 전력의 값. */
+/** 전력량 절감(원) = 발전량 × 자가소비 단가(157.6원) */
 export const revenueWon = (rows: MonthForecast[], ppaPrice: number) => totalKwh(rows) * ppaPrice;
+
+/** 기본요금 절감(원/월) = 설치용량 × 피크감축 반영률 30% × 기본요금 8,320원.
+    사업성 검토(bizSim)와 같은 식 — 단기 예측이라 요금 상승률·효율감소는 안 태운다(몇 개월엔 영향 미미) */
+export const basicSaveWonPerMonth = (capacityKw: number) => capacityKw * 0.3 * SELF_TARIFF.basicKrwKw;
 
 const daysInMonth = (y: number, m: number) => new Date(y, m, 0).getDate();
 
