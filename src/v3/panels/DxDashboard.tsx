@@ -133,9 +133,8 @@ export function DxDashboard({ onClose, initialPlant = 17514 }: { onClose: () => 
               </span>
             </div>
             <Note>0~100, 높을수록 양호</Note>
-            <Note>
-              {sensors.length > 1 ? '센서 중 가장 낮은 값 · ' : ''}5분 갱신{worst ? ` · 산출 ${hhmm(worst.diagnosedAt)}` : ''}
-            </Note>
+            {sensors.length > 1 && <Note>센서 중 가장 낮은 값</Note>}
+            <Note>5분 갱신{worst ? ` · 산출 ${hhmm(worst.diagnosedAt)}` : ''}</Note>
           </Card>
           <Card title="설비 상태 (Health Index)">
             <div className="mb-2 flex items-baseline gap-1">
@@ -143,8 +142,9 @@ export function DxDashboard({ onClose, initialPlant = 17514 }: { onClose: () => 
               {lowHealth && <span className="text-[13px] text-slate-500">/ 100</span>}
             </div>
             <Note>설비 상태 점수 0~100, 높을수록 양호</Note>
+            {sensors.length > 1 && <Note>센서 중 가장 낮은 값</Note>}
             <Note>
-              {sensors.length > 1 ? '센서 중 가장 낮은 값 · ' : ''}1시간 갱신
+              1시간 갱신
               {lowHealth ? ` · ${hhmm(lowHealth.windowStartedAt)}~${hhmm(lowHealth.windowEndedAt)}` : ''}
             </Note>
           </Card>
