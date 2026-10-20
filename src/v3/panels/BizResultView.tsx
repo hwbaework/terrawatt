@@ -138,7 +138,6 @@ export function BizResultView({
   building,
   tick,
   onClose,
-  showDoc,
   actualMonthlyKwh,
   actualYearlyMwh,
   periodMonths,
@@ -149,7 +148,6 @@ export function BizResultView({
   /** 창 내리기 — 결과는 결과함(BizDock)에 남는다 */
   onClose: () => void;
   /** [문서로 보기] 버튼 — 한일튜브 대상일 때만(문서가 한일튜브 사양으로 짜여 있어서) */
-  showDoc?: boolean;
   /** 월별 실측 발전량(올해, kWh 12개 — 아직 안 온 달은 null) — 예측 막대 위에 실측 점·선을 겹친다(기존 설비만) */
   actualMonthlyKwh?: (number | null)[];
   /** 연차별 실측 발전량(MWh, 지나간 해만 — 나머지 null) — 연차 표에 실측 열이 생긴다(기존 설비만) */
@@ -213,8 +211,8 @@ export function BizResultView({
 
   return (
     <div
-      // 왼쪽 브랜드 카드(16rem)와 오른쪽 서랍(21rem) 사이 전체. 밝은 종이 톤 — 시뮬레이터 결과 화면과 같은 느낌
-      className="print-target fixed bottom-3 left-[18rem] right-[22.5rem] top-4 z-30 flex flex-col overflow-hidden rounded-2xl border border-slate-200 bg-slate-100 text-slate-800 shadow-2xl"
+      // 왼쪽 브랜드 카드(16rem)와 오른쪽 서랍(26rem — 2026-09-07 확장) 사이 전체. 밝은 종이 톤 — 시뮬레이터 결과 화면과 같은 느낌
+      className="print-target fixed bottom-3 left-[18rem] right-[27.5rem] top-4 z-30 flex flex-col overflow-hidden rounded-2xl border border-slate-200 bg-slate-100 text-slate-800 shadow-2xl"
       style={{ minWidth: 680 }}
       data-tick={tick}
     >
@@ -227,7 +225,7 @@ export function BizResultView({
             {/* 화면 전용 배지 — 인쇄물엔 의미 없어 숨김 */}
             <span className="flex items-center gap-1 rounded-md bg-emerald-50 px-2 py-0.5 text-[13px] font-bold text-emerald-700 print:hidden">
               <span className="inline-block h-1.5 w-1.5 animate-pulse rounded-full bg-emerald-500" />
-              실시간 — 오른쪽 입력을 바꾸면 바로 반영
+              실시간
             </span>
           </div>
           <p className="mt-1.5 truncate text-[12px] text-slate-500">
@@ -235,17 +233,6 @@ export function BizResultView({
           </p>
         </div>
         <div className="flex shrink-0 items-center gap-1 print:hidden">
-          {/* PDF로 저장 — 이 창을 **보이는 그대로** 인쇄/저장(2026-08-26 사용자 확정: 별도 문서 양식 없음).
-              index.css 의 @media print 가 이 창(.print-target)만 남기고 전부 숨긴다 */}
-          {showDoc && (
-            <button
-              type="button"
-              onClick={() => window.print()}
-              className="flex items-center gap-1.5 rounded-lg bg-slate-100 px-3 py-1.5 text-[13px] font-bold text-slate-700 transition-colors hover:bg-slate-200"
-            >
-              PDF로 저장
-            </button>
-          )}
           <button
             type="button"
             onClick={onClose}

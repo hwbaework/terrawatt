@@ -28,7 +28,7 @@ export function Drawer({
     <aside
       className={`animate-[slideInRight_.22s_ease-out] fixed right-0 top-0 z-30 flex h-dvh flex-col
                  border-l border-white/10 bg-slate-950/95 shadow-[-8px_0_32px_rgba(0,0,0,.45)] backdrop-blur-md
-                 ${width === 'wide' ? 'w-[34rem] max-w-[92vw]' : 'w-[21rem]'}`}
+                 ${width === 'wide' ? 'w-[34rem] max-w-[92vw]' : 'w-[26rem]'}`}
     >
       <header className="flex items-start justify-between gap-2 px-5 pb-3 pt-4">
         <div className="min-w-0">

@@ -4,22 +4,22 @@ import { MIcon } from '../v2/lib/MIcon';
 import { VWORLD_KEY, lookAtPlace } from './map/vworldEngine';
 import { VWorld3DView } from './views/VWorld3DView';
 import { Compass, WeatherBadge } from './views/WeatherBadge';
-import { HOME } from './home';
+import { HOME, OVERVIEW, VIEWER_ROLE } from './home';
+import { FACILITIES } from './data/facilities';
 // import { TweakPanel } from './panels/TweakPanel'; // 화면 설계서용으로 임시 숨김(2026-08-24) — 되돌릴 때 복원
 import { FacilityPanel } from './panels/FacilityPanel';
 import { DtScreenPanel } from './panels/DtScreenPanel';
 import { Drawer } from './panels/Drawer';
 import { PlantSimScreen } from './panels/PlantSimScreen';
 import { BizDock, BizResultView } from './panels/BizResultView';
-import { DtViewPopup } from './panels/DtViewPopup';
 import { EventPopup } from './panels/EventPopup';
-import { INVERTER_COMM_DOWN, PLANT_EVENTS, type PlantEventKind } from './data/plantEvents';
+import { INVERTER_COMM_DOWN, type PlantEventKind } from './data/plantEvents';
 import { FloodScreen } from './panels/FloodScreen';
 import { FireScreen } from './panels/FireScreen';
 import { QuakeScreen } from './panels/QuakeScreen';
 import { DEFAULT_PV_ASSUMPTION, defaultProject, planPv, M2_PER_KW, type PvAssumption, type PvProject } from './lib/pvPlan';
 import { PLANT_SPECS } from './data/specs';
-import { FACILITY_MONTH_ACTUAL_KWH, FACILITY_YEAR_ACTUAL_MWH, PLANT_DEMO } from './data/demoReadings';
+import { FACILITY_MONTH_ACTUAL_KWH, FACILITY_YEAR_ACTUAL_MWH, OTHER_PLANT_DEMO, PLANT_DEMO } from './data/demoReadings';
 import type { SketchBuilding } from './map/buildSketch';
 import { ACTIVE_SCREENS } from './data/dtScreens';
 import { PLANNED_ASSETS } from './data/plannedAssets';
@@ -38,6 +38,11 @@ import { getBuilding, isSketching, listBuildings } from './map/buildSketch';
 
    ⚠️ 브이월드 로더는 index.html 에 정적으로 박혀 있어야만 동작한다 — 거기 주석 참고.
    ─────────────────────────────────────────────────────────────────────────── */
+
+/** 한일튜브 말고 다른 발전소들 — 좌상단 카드에 한 줄씩 (관리자만 본다) */
+const OTHER_PLANTS = FACILITIES.filter((f) => f.id !== HOME.facilityId);
+/** 관리자(울산시·운영사)인가 — 산단 전체·남의 발전소는 이 사람만 본다. home.ts 의 VIEWER_ROLE 로 전환 */
+const isAdmin = VIEWER_ROLE === 'admin';
 
 export default function AppV3() {
   const homeRef = useRef<() => void>(() => {});
@@ -78,8 +83,7 @@ export default function AppV3() {
   const [hanilProject, setHanilProject] = useState<PvProject>(() => defaultProject());
   /** null = 올해(실측 비교) / n = 다음 달부터 n개월 예측 — 월별 차트의 범위 */
   const [hanilMonths, setHanilMonths] = useState<number | null>(null);
-  /** 콜아웃 스파크라인 → 시간별 출력 그래프 팝업. 구조·모니터링 뷰는 삭제됨(2026-08-31) */
-  const [dtView, setDtView] = useState<'graph' | null>(null);
+  /* 시간별 출력 그래프 팝업(DtViewPopup)은 제거(2026-09-07 사용자 확정) — 콜아웃과 함께 부가 기능 정리 */
   const [hanilOpen, setHanilOpen] = useState(false);
   const [hanilTick, setHanilTick] = useState(0);
   const hanilCapacityKw = PLANT_SPECS[HOME.facilityId]?.capacityKw ?? 0;
@@ -99,13 +103,11 @@ export default function AppV3() {
     if (!(panel?.kind === 'sim' && panel.id === 'gen')) setHanilOpen(false);
   }, [panel]);
 
-  /* 설비 이벤트 팝업 — 발전소 상세의 "설비 상태"를 누르면 그 신호의 알림을 미리 본다(2026-08-31).
+  /* 알람 팝업 — 발전소 상세의 "설비 상태" 클릭(설비 3종) + 안전·화재 화면의 알람 테스트(전기안전·기상).
      발전량 0은 안 울린다(구름일 수 있음) — 조건·철학은 plantEvents.ts 주석 참고.
-     발전소 상세를 벗어나면 같이 내린다 */
+     ⚠️ 화면을 옮기거나 서랍을 닫아도 사라지지 않는다(2026-09-09 사용자 확정) — 알람은 사람이
+        [확인]을 눌러 끄기 전까지 떠 있어야 한다. 딴 화면 봤다고 없어지면 놓친다 */
   const [plantEvent, setPlantEvent] = useState<PlantEventKind | null>(null);
-  useEffect(() => {
-    if (!(panel?.kind === 'dt' && panel.id === 'plant')) setPlantEvent(null);
-  }, [panel]);
   /* 좌상단 한일튜브 카드도 이벤트를 따라간다(2026-08-31 사용자 확정):
      RTU 전원·통신이 죽으면 실시간 값 자체가 안 오므로 0, 인버터 2대 두절이면 살아있는 2대의 합만.
      "가동중" 배지도 이벤트 이름으로 바뀐다 */
@@ -183,13 +185,7 @@ export default function AppV3() {
 
   return (
     <div className="relative" style={{ height: '100dvh', width: '100vw' }}>
-      <VWorld3DView
-        bindHome={bindHome}
-        onSelect={handleSelect}
-        onSelectAsset={goAsset}
-        onQuickAction={(a) => setPanel(a === 'predict' ? { kind: 'dt', id: 'predictive' } : { kind: 'sim', id: a })}
-        onOpenView={setDtView}
-      />
+      <VWorld3DView bindHome={bindHome} onSelect={handleSelect} onSelectAsset={goAsset} />
       {/* 상단 가운데 — 지금 보는 곳의 구·군 + 날씨(샘플). 경계를 넘으면 지역명·값이 바뀐다 */}
       <WeatherBadge />
 
@@ -198,7 +194,7 @@ export default function AppV3() {
 
       {/* 오른쪽 아래 — 나침반(지도 앱 관례 자리). 서랍이 열리면 아이콘 바처럼 같이 밀려난다 */}
       <div
-        className={`fixed bottom-10 z-30 transition-[right] duration-200 ${panel ? 'right-[21.75rem]' : 'right-3'}`}
+        className={`fixed bottom-10 z-30 transition-[right] duration-200 ${panel ? 'right-[26.75rem]' : 'right-3'}`}
       >
         <Compass />
       </div>
@@ -216,6 +212,31 @@ export default function AppV3() {
           </div>
           <VersionSwitch />
         </div>
+        {/* 돌아가기 — **목록 맨 위**에 둔다(2026-09-08 사용자 확정):
+            상위 계층이라 위가 맞고, 발전소가 100곳이 되어 목록이 스크롤돼도 이 버튼은 늘 보여야 한다.
+            라벨 = **이전 화면**(2026-09-08 확정). 이 앱은 울산 DT에서 발전소를 눌러 들어오는 구조라
+            이 버튼은 결국 왔던 곳으로 나가는 문이다. 목적지 이름("울산 DT")을 박지 않은 이유는
+            상위 시스템의 호칭이 바뀌거나 진입 경로가 늘어도 "이전 화면"은 계속 맞는 말이기 때문.
+            ⚠️ 지금은 산단 전체 뷰로 올라가는 것으로 대신한다 — 실연동 시 상위 웹 주소로 복귀시키면 된다.
+            관리자(울산시·운영사)만 보인다 — 사업주에게 남의 발전소는 영업정보라 열면 안 된다 */}
+        {isAdmin && (
+          <button
+            type="button"
+            onClick={() => {
+              lookAtPlace({ ...OVERVIEW });
+              setPanel(null);
+            }}
+            title="상위 화면(산단 전체)으로 돌아간다"
+            className="mb-1.5 flex w-full items-center justify-center gap-1.5 rounded-lg bg-white/[0.04] px-2.5 py-2
+                       text-[12px] font-bold text-slate-400 transition-colors hover:bg-white/10 hover:text-slate-200"
+          >
+            {/* 아이콘 폰트는 **서브셋**이라 쓰던 것만 들어 있다 — 새 이름을 넣으면 글자로 나온다.
+                서랍의 "돌아가기"와 같은 화살표(chevron_right 180°)를 그대로 쓴다 */}
+            <MIcon name="chevron_right" size={15} className="shrink-0 rotate-180" />
+            이전 화면
+          </button>
+        )}
+
         {/* 내 건물 바로가기 — 화면 설계서 작성용으로 배치조절·예정 자산 4종은 임시로 숨김(2026-08-24).
             되돌리려면 이 주석 위쪽의 <TweakPanel/> 버튼과 아래 PLANNED_ASSETS.map 블록을 복원 */}
         <div className="mt-2 flex items-center gap-1.5">
@@ -233,25 +254,65 @@ export default function AppV3() {
             <span className="min-w-0 flex-1">
               <span className="flex items-center gap-1.5">
                 <span className="truncate text-[12.5px] font-bold text-slate-100">{HOME.name}</span>
-                {/* 이벤트 중엔 "가동중" 대신 이벤트 이름을 빨갛게 */}
+                {/* 상태는 **정상 / 오류** 두 낱말만. 알람이 하나라도 떠 있으면 오류 —
+                    어떤 알람인지는 팝업이 말한다 */}
                 <span
                   className={`flex shrink-0 items-center gap-1 rounded-full px-1.5 py-[1px] text-[10px] font-bold ${
                     plantEvent ? 'bg-red-500/15 text-red-300' : 'bg-emerald-500/15 text-emerald-300'
                   }`}
                 >
                   <span className={`h-1.5 w-1.5 rounded-full ${plantEvent ? 'animate-pulse bg-red-400' : 'bg-emerald-400'}`} />
-                  {plantEvent ? PLANT_EVENTS[plantEvent].badge : '가동중'}
+                  {plantEvent ? '오류' : '정상'}
                 </span>
               </span>
               <span className="mt-0.5 flex items-baseline gap-1">
                 <span className={`h-1.5 w-1.5 animate-pulse rounded-full ${plantEvent ? 'bg-red-400' : 'bg-emerald-400'}`} />
                 <span className={`text-[13px] font-extrabold ${plantEvent ? 'text-red-300' : 'text-emerald-300'}`}>{liveKw.toLocaleString('ko-KR', { minimumFractionDigits: 1, maximumFractionDigits: 1 })}</span>
-                <span className="text-[10px] font-bold text-slate-500">kW 실시간</span>
+                <span className="text-[12px] font-bold text-slate-300">kW</span>
               </span>
             </span>
             <MIcon name="chevron_right" size={16} className="shrink-0 text-slate-500" />
           </button>
         </div>
+
+        {/* 다른 발전소들 — 관리자만 본다(사업주에게 남의 발전량은 영업정보).
+            연동된 모습으로 보여준다(2026-09-08 사용자 확정) — 값은 예시(OTHER_PLANT_DEMO).
+            발전소가 늘어나도 카드가 화면을 덮지 않게 목록만 스크롤한다 */}
+        {isAdmin && OTHER_PLANTS.length > 0 && (
+          <div className="mt-1.5 flex max-h-56 flex-col gap-1.5 overflow-y-auto">
+            {OTHER_PLANTS.map((f) => (
+              <button
+                key={f.id}
+                type="button"
+                onClick={() => {
+                  lookAtPlace({ lng: f.lng, lat: f.lat, altitude: 900, tiltDeg: -50 });
+                  setFocus(f.id);
+                  setPanel({ kind: 'facility', id: f.id });
+                }}
+                className="flex w-full items-center gap-2 rounded-lg bg-white/[0.06] px-2.5 py-2 text-left transition-colors hover:bg-white/15"
+              >
+                <MIcon name="factory" size={16} className="shrink-0 text-slate-400" />
+                <span className="min-w-0 flex-1">
+                  <span className="flex items-center gap-1.5">
+                    <span className="truncate text-[12.5px] font-bold text-slate-100">{f.name}</span>
+                    <span className="flex shrink-0 items-center gap-1 rounded-full bg-emerald-500/15 px-1.5 py-[1px] text-[10px] font-bold text-emerald-300">
+                      <span className="h-1.5 w-1.5 rounded-full bg-emerald-400" />
+                      {OTHER_PLANT_DEMO[f.id]?.status ?? '정상'}
+                    </span>
+                  </span>
+                  <span className="mt-0.5 flex items-baseline gap-1">
+                    <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-emerald-400" />
+                    <span className="text-[13px] font-extrabold text-emerald-300">
+                      {(OTHER_PLANT_DEMO[f.id]?.currentKw ?? 0).toLocaleString('ko-KR', { minimumFractionDigits: 1, maximumFractionDigits: 1 })}
+                    </span>
+                    <span className="text-[12px] font-bold text-slate-300">kW</span>
+                  </span>
+                </span>
+                <MIcon name="chevron_right" size={16} className="shrink-0 text-slate-500" />
+              </button>
+            ))}
+          </div>
+        )}
 
         <div className="mt-1.5 flex flex-col gap-1">
           {false && PLANNED_ASSETS.map((a) => {
@@ -283,11 +344,11 @@ export default function AppV3() {
       </div>
 
       {/* 오른쪽 끝 아이콘 바 — 디지털트윈 화면을 갈아끼운다.
-          서랍이 열리면 그 폭(21rem)만큼 왼쪽으로 비켜선다 */}
+          서랍이 열리면 그 폭(26rem — 2026-09-07 확장)만큼 왼쪽으로 비켜선다 */}
       <div
         className={`fixed top-1/2 z-30 flex -translate-y-1/2 flex-col gap-1 rounded-xl border border-white/10
                     bg-slate-950/85 p-1.5 shadow-xl backdrop-blur transition-[right] duration-200
-                    ${panel ? 'right-[21.75rem]' : 'right-3'}`}
+                    ${panel ? 'right-[26.75rem]' : 'right-3'}`}
       >
         {/* 첫 칸 = 시설 정보. **지금 보고 있는 자산**을 따라간다 — 한일튜브면 공장, 수소면 수소 */}
         <button
@@ -418,8 +479,6 @@ export default function AppV3() {
         <BizDock buildings={bizBuildings} openId={bizOpen} onOpen={(id) => { setBizOpen(id); if (panel?.kind !== 'build') setPanel({ kind: 'build' }); }} tick={bizTick} />
       )}
       {bizBuilding && <BizResultView key={bizBuilding.id} building={bizBuilding} tick={bizTick} onClose={() => setBizOpen(null)} />}
-      {/* DT 뷰 팝업 — 콜아웃의 뷰 그림(구조·모니터링)을 누르면 지도 가운데에 크게 */}
-      {dtView && <DtViewPopup initial={dtView} onClose={() => setDtView(null)} />}
       {/* 발전량 시뮬 결과 — 한일튜브 실측 설비를 같은 엔진(runBiz)에 태운 사업성 검토. 문서로 보기·실측 오버레이 포함 */}
       {hanilOpen && (
         <BizResultView
@@ -427,7 +486,6 @@ export default function AppV3() {
           building={hanilBuilding}
           tick={hanilTick}
           onClose={() => setHanilOpen(false)}
-          showDoc
           actualMonthlyKwh={FACILITY_MONTH_ACTUAL_KWH}
           actualYearlyMwh={FACILITY_YEAR_ACTUAL_MWH}
           periodMonths={hanilMonths}

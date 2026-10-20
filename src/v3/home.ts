@@ -34,3 +34,21 @@ export const HOME = {
       가까이 다가가는 쪽은 막지 않는다(건물을 살펴봐야 하므로). */
   maxDistanceM: 25_000,
 } as const;
+
+/* 산단 전체 뷰 — "위로 가기" 버튼이 데려가는 자리(2026-09-08 사용자 확정).
+   개별 건물이 아니라 **발전소들의 분포**를 보는 높이 = 시연 흐름의 첫 장면
+   (울산 산단 전체 → 발전소 고르기 → 한일튜브 상세).
+   좌표는 울산미포산단의 대략적인 가운데. */
+export const OVERVIEW = {
+  lng: 129.335,
+  lat: 35.508,
+  altitude: 9_000,
+  tiltDeg: -72,
+} as const;
+
+/* 누가 보고 있나 — 권한(2026-09-08 사용자 지적).
+     admin(울산시·운영사) = 산단 전체와 모든 발전소를 본다
+     owner(한일튜브 같은 사업주) = **자기 발전소만** 본다 — 남의 발전량은 영업정보라 보이면 안 된다
+   지금은 로그인이 없는 POC라 여기 한 줄로 전환한다. 실제로는 로그인 계정의 권한으로 정해진다. */
+export type ViewerRole = 'admin' | 'owner';
+export const VIEWER_ROLE: ViewerRole = 'admin';

@@ -1,7 +1,6 @@
 import { FACILITIES } from '../data/facilities';
-import { FACILITY_GEN_DEMO } from '../data/demoReadings';
-import { M2_PER_KW } from '../lib/pvPlan';
-import { FACILITY_SPECS, MODEL_SPECS, PLANT_SPECS } from '../data/specs';
+import { FACILITY_GEN_DEMO, OTHER_PLANT_DEMO } from '../data/demoReadings';
+import { FACILITY_SPECS, PLANT_SPECS } from '../data/specs';
 import { Drawer, Row, Section } from './Drawer';
 
 /* 시설 정보 — 오른쪽에서 밀려 나오는 패널.
@@ -30,10 +29,39 @@ function MetricTile({ label, value, unit, sub, accent }: { label: string; value:
 export function FacilityPanel({ facilityId, onClose }: { facilityId: string; onClose: () => void }) {
   const f = FACILITIES.find((x) => x.id === facilityId);
   const spec = FACILITY_SPECS[facilityId];
-  const model = MODEL_SPECS[facilityId];
   const plant = PLANT_SPECS[facilityId];
   const g = FACILITY_GEN_DEMO;
   if (!f) return null;
+
+  /* 두 번째 발전소 — 한일튜브만큼 상세 도면이 없어 설비 구성 대신 계측값만 보여준다.
+     값은 예시(OTHER_PLANT_DEMO) — 상태 낱말은 화면 전체와 같은 정상/오류 둘뿐이다 */
+  const other = OTHER_PLANT_DEMO[facilityId];
+  if (!plant) {
+    return (
+      <Drawer title={f.name} onClose={onClose}>
+        <Section title="시설 정보">
+          <div className="divide-y divide-white/5">
+            <Row label="유형">{f.type}</Row>
+            {other && <Row label="설치용량">{fmt(other.capacityKw, 2)} kW</Row>}
+            {f.plantCode && <Row label="발전소 코드">{f.plantCode}</Row>}
+            {other && (
+              <Row label="상태">
+                <span className={other.status === '정상' ? 'text-emerald-400' : 'text-red-400'}>● {other.status}</span>
+              </Row>
+            )}
+          </div>
+        </Section>
+        {other && (
+          <Section title="발전 실적">
+            <div className="grid grid-cols-2 gap-2">
+              <MetricTile label="현재 출력" value={fmt(other.currentKw, 1)} unit="kW" />
+              <MetricTile label="오늘 누적 발전량" value={fmt(other.todayKwh, 1)} unit="kWh" />
+            </div>
+          </Section>
+        )}
+      </Drawer>
+    );
+  }
 
   return (
     <Drawer
@@ -50,8 +78,8 @@ export function FacilityPanel({ facilityId, onClose }: { facilityId: string; onC
               {spec.rePercent != null && <Row label="RE 비율">{spec.rePercent}%</Row>}
               {spec.status && (
                 <Row label="상태">
-                  {/* 가동 중일 때만 초록. 정지·점검 중 등은 회색 — 멈춰 있는데 초록불이 뜨지 않게 */}
-                  <span className={spec.status === '가동 중' ? 'text-emerald-400' : 'text-slate-400'}>
+                  {/* 정상이면 초록, 오류면 빨강 — 화면 전체가 이 두 낱말만 쓴다 */}
+                  <span className={spec.status === '정상' ? 'text-emerald-400' : 'text-red-400'}>
                     ● {spec.status}
                   </span>
                 </Row>
@@ -75,38 +103,16 @@ export function FacilityPanel({ facilityId, onClose }: { facilityId: string; onC
               FEMS 연동 전까지 없고, 쓰던 22.24%는 검산이 안 맞는 예시값이었다. FEMS 연동 시 복귀 */}
         </Section>
 
-        <Section title="건물">
+        {/* 건물 크기·높이·설치 면적은 제거(2026-09-07 사용자 확정) — 부가 정보 정리. 설비 구성만 남긴다 */}
+        <Section title="설비">
           <div className="divide-y divide-white/5">
-            {model?.dimensionsM && (
-              <>
-                <Row label="건물 크기">
-                  {model.dimensionsM[0]} × {model.dimensionsM[2]} m
-                </Row>
-                <Row label="높이">{model.dimensionsM[1]} m</Row>
-              </>
-            )}
-            {/* 설치 면적 = 용량 × 12㎡/kW (2026-08-24 확정 규칙의 역산) — 지붕 대비 사용률이 확장 여지를 보여준다 */}
-            {plant && model?.dimensionsM && (
-              <Row label="설치 면적">
-                {fmt(plant.capacityKw * M2_PER_KW)} ㎡{' '}
-                <span className="font-normal text-slate-500">
-                  (지붕의 {fmt((plant.capacityKw * M2_PER_KW / (model.dimensionsM[0] * model.dimensionsM[2])) * 100)}%)
-                </span>
-              </Row>
-            )}
-            {/* 설치용량은 위 "시설 정보"로 올렸다 — 여기선 설비 구성만. 모델명 = 도면 실측(specs.ts) */}
+            {/* 인버터 = 대수·용량 / 모듈 = 모델명만(2026-09-07 사용자 확정) — 그 외 수치는 걷어냄 */}
             {plant && (
               <Row label="인버터">
                 {plant.inverters.length}대 · {plant.inverters[0].ratedKw}kW
-                <span className="ml-1 text-slate-500">{plant.inverterModel}</span>
               </Row>
             )}
-            {plant && (
-              <Row label="모듈">
-                {plant.inverters.reduce((s, i) => s + i.modules, 0)}장
-                <span className="ml-1 text-slate-500">{plant.module.model}</span>
-              </Row>
-            )}
+            {plant && <Row label="모듈">{plant.module.model}</Row>}
           </div>
       </Section>
     </Drawer>

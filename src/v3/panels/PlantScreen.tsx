@@ -1,8 +1,7 @@
 import { useState } from 'react';
-import { INVERTER_HISTORY, PLANT_DEMO, invLabel, type PlantReading } from '../data/demoReadings';
+import { PLANT_DEMO, invLabel, type PlantReading } from '../data/demoReadings';
 import { INVERTER_COMM_DOWN, type PlantEventKind } from '../data/plantEvents';
-import { SELF_TARIFF } from '../lib/bizSim';
-import { MIcon } from '../../v2/lib/MIcon';
+import { solarHourShares } from '../data/kepcoTariff';
 import { Section } from './Drawer';
 
 /* 발전소 상세 — 한일튜브 본인이 보는 화면.
@@ -15,25 +14,12 @@ import { Section } from './Drawer';
 
 const fmt = (n: number, d = 0) => n.toLocaleString('ko-KR', { minimumFractionDigits: d, maximumFractionDigits: d });
 
-/** 자가소비 전력량 단가(원/kWh) — 발전량을 "아낀 돈"으로 환산(SELF_TARIFF, 157.6) */
-const RATE = SELF_TARIFF.energyKrwKwh;
-/** 원 — 정확히(콤마) */
-const won = (n: number) => `${Math.round(n).toLocaleString('ko-KR')}원`;
-/** 억/만원 — 큰 금액을 짧게 */
-const wonShort = (n: number) =>
-  n >= 1e8 ? `${(n / 1e8).toFixed(2)}억원` : n >= 1e4 ? `${Math.round(n / 1e4).toLocaleString('ko-KR')}만원` : won(n);
-
-/** 이름 앞 상태 점 — 색은 둘뿐(2026-08-31 사용자 확정, 노란색 금지):
-    초록 = 정상 / 빨강 = 고장 확정(DX riskLevel 연동 후에만). 그 외(통신 없음 등)는 회색 */
-/* 점 색 = 상태값이 사실 2개다(2026-08-31 사용자 확정):
-   빨강 = 꺼짐(전원 Off·통신 두절 — 데이터 자체가 안 옴) / 주황 = 고장(데이터는 오는데 설비 이상, API status_msg) / 초록 = 정상 */
-function Dot({ ok, fault }: { ok: boolean; fault?: boolean }) {
+/* 점 색은 둘뿐 — 초록 = 정상 / 빨강 = 오류(화면 전체 공통).
+   오류 = 꺼짐(전원 Off·통신 두절 — 데이터가 안 옴) 또는 인버터가 보고한 이상 상태(status_msg).
+   둘 다 API 가 알려주는 **사실**이다 — 우리가 추정한 판정은 여기 넣지 않는다 */
+function Dot({ ok }: { ok: boolean }) {
   return (
-    <span
-      className={`mr-1.5 inline-block h-[7px] w-[7px] shrink-0 rounded-full ${
-        !ok ? 'bg-red-400' : fault ? 'bg-amber-400' : 'bg-emerald-400'
-      }`}
-    />
+    <span className={`mr-1.5 inline-block h-[7px] w-[7px] shrink-0 rounded-full ${ok ? 'bg-emerald-400' : 'bg-red-400'}`} />
   );
 }
 
@@ -51,76 +37,103 @@ function Tile({ label, value, unit, sub }: { label: string; value: string; unit?
   );
 }
 
-/** 금일 누적 발전량 추이 — 라이브러리 없이 SVG로 직접 그린다.
-    마우스를 올리면 그 시각의 누적 발전량 + 직전 시간 동안 얼마나 늘었는지 툴팁(2026-08-24, 발전량 시뮬 막대와 같은 문법) */
-function TodayChart({ curve }: { curve: PlantReading['todayCurve'] }) {
+/** 시간별 출력 — 지도 팝업(DtViewPopup)에 있던 그래프를 우측 패널로 옮김(2026-09-07 사용자 확정).
+    점선 = 24시간 예상 출력(태양 고도 기반 시간 분포 × 일 예상 발전량) / 초록 막대 = 현재까지 실측
+    (실측 = 오늘 누적 곡선의 시간당 증가분 — 발전소 상세와 같은 데이터) */
+function HourlyChart({ curve, capacityKw }: { curve: PlantReading['todayCurve']; capacityKw: number }) {
   const [hover, setHover] = useState<number | null>(null);
-  const W = 288;
-  const H = 96;
-  const PAD_B = 16; // 시각 라벨 자리
-  const max = Math.max(...curve.map(([, v]) => v)) || 1;
-  const x = (i: number) => (i / (curve.length - 1)) * W;
-  const y = (v: number) => (H - PAD_B) * (1 - v / max);
-
-  const line = curve.map(([, v], i) => `${i === 0 ? 'M' : 'L'}${x(i).toFixed(1)},${y(v).toFixed(1)}`).join(' ');
-  const area = `${line} L${W},${H - PAD_B} L0,${H - PAD_B} Z`;
-  const hv = hover != null ? curve[hover] : null;
-  const delta = hover != null && hover > 0 ? curve[hover][1] - curve[hover - 1][1] : null;
+  const expectedDaily = capacityKw * 3.82; // 일 예상 발전량 = 용량 × 일평균 발전시간
+  const shares = solarHourShares(new Date().getMonth() + 1); // 이번 달의 시간별 발전 비중(합 1)
+  const expected = shares.map((s) => s * expectedDaily);
+  /* 실측 — 누적 곡선의 시간당 증가분. 슬롯 h = h시~h+1시 */
+  const actual: (number | null)[] = Array.from({ length: 24 }, () => null);
+  curve.slice(1).forEach(([, v], i) => {
+    const h = parseInt(curve[i][0].slice(0, 2), 10);
+    actual[h] = v - curve[i][1];
+  });
+  const max = Math.max(...expected, ...actual.map((v) => v ?? 0), 1);
+  const W = 400;
+  const H = 190;
+  const padL = 38;
+  const padB = 22;
+  const padT = 30; // 위 여백 — kWh 단위가 맨 위 눈금 숫자와 겹치지 않게
+  const slotW = (W - padL - 10) / 24;
+  const x = (i: number) => padL + slotW * (i + 0.5); // 슬롯 가운데
+  const y = (v: number) => H - padB - ((H - padB - padT) * v) / max;
+  const barW = slotW * 0.62;
+  const expPts = expected.map((v, i) => `${x(i).toFixed(1)},${y(v).toFixed(1)}`).join(' ');
 
   return (
     <div className="relative">
-      {hv && (
+      {/* 범례 — 색 칩으로만 */}
+      <div className="mb-1.5 flex items-center gap-4 text-[11.5px] font-bold text-slate-400">
+        <span className="flex items-center gap-1.5">
+          <span className="inline-block h-3 w-3 rounded-[3px] bg-emerald-400/80" />실측
+        </span>
+        <span className="flex items-center gap-1.5">
+          <span className="inline-block h-[3px] w-4 rounded bg-sky-300/80" />예상
+        </span>
+      </div>
+      {hover != null && (
         <div
-          className="pointer-events-none absolute -top-1 z-10 -translate-x-1/2 -translate-y-full whitespace-nowrap rounded-lg border border-white/15 bg-slate-900 px-2.5 py-1.5 text-center shadow-xl"
-          style={{ left: `${(x(hover!) / W) * 100}%` }}
+          className="pointer-events-none absolute top-0 z-10 -translate-x-1/2 whitespace-nowrap rounded-lg border border-white/15 bg-slate-900 px-2.5 py-1.5 text-center shadow-xl"
+          style={{ left: `${(x(hover) / W) * 100}%` }}
         >
-          <div className="text-[12px] font-bold text-slate-200">{hv[0]}</div>
-          <div className="text-[13px] font-extrabold text-emerald-300">누적 {fmt(hv[1], 1)} kWh</div>
-          {delta != null && <div className="text-[11.5px] text-slate-400">직전 1시간 +{fmt(delta, 1)} kWh</div>}
+          <div className="text-[12px] font-bold text-slate-300">{hover}시</div>
+          <div className="text-[12.5px] font-bold text-sky-300">예상 {fmt(expected[hover], 1)} kWh</div>
+          {actual[hover] != null && (
+            <div className="text-[13px] font-extrabold text-emerald-300">실측 {fmt(actual[hover]!, 1)} kWh</div>
+          )}
         </div>
       )}
-      <svg viewBox={`0 0 ${W} ${H}`} className="w-full" role="img" aria-label="금일 누적 발전량 추이">
-        {/* 가로 눈금 */}
+      <svg viewBox={`0 0 ${W} ${H}`} className="w-full" role="img" aria-label="시간별 출력">
+        {/* 세로축 단위 — 눈금 숫자 위에 따로 */}
+        <text x={padL - 5} y={13} textAnchor="end" fill="#94a3b8" fontSize={10} fontWeight={700}>
+          kWh
+        </text>
         {[0, 0.5, 1].map((t) => (
-          <line
-            key={t}
-            x1={0}
-            x2={W}
-            y1={(H - PAD_B) * t}
-            y2={(H - PAD_B) * t}
-            stroke="rgba(255,255,255,.07)"
-            strokeWidth={1}
-          />
+          <g key={t}>
+            <line x1={padL} x2={W - 10} y1={y(max * t)} y2={y(max * t)} stroke="rgba(255,255,255,.08)" />
+            <text x={padL - 5} y={y(max * t) + 3.5} textAnchor="end" fill="#64748b" fontSize={10.5}>
+              {fmt(max * t)}
+            </text>
+          </g>
         ))}
-        <path d={area} fill="rgba(52,211,153,.13)" />
-        <path d={line} fill="none" stroke="#34d399" strokeWidth={1.8} strokeLinejoin="round" />
-        {/* 호버 점 + 세로 안내선 */}
-        {hv && (
-          <>
-            <line x1={x(hover!)} x2={x(hover!)} y1={0} y2={H - PAD_B} stroke="rgba(52,211,153,.35)" strokeWidth={1} />
-            <circle cx={x(hover!)} cy={y(hv[1])} r={3.5} fill="#34d399" stroke="#0f172a" strokeWidth={1.5} />
-          </>
+        {/* 실측 — 초록 막대 (아직 안 온 시간은 없음) */}
+        {actual.map((v, i) =>
+          v == null ? null : (
+            <rect
+              key={i}
+              x={x(i) - barW / 2}
+              y={y(v)}
+              width={barW}
+              height={Math.max(1, H - padB - y(v))}
+              rx={2}
+              fill={hover === i ? '#34d399' : 'rgba(52,211,153,.75)'}
+            />
+          ),
         )}
-        {/* 마우스 판 — 점마다 세로 띠를 깔아 가장 가까운 시각을 잡는다 */}
-        {curve.map((_, i) => (
+        {/* 예상 — 24시간 선 */}
+        <polyline points={expPts} fill="none" stroke="#7dd3fc" strokeOpacity={0.9} strokeWidth={2} strokeDasharray="5 4" strokeLinejoin="round" />
+        {/* 마우스 판 — 시간마다 세로 띠 */}
+        {Array.from({ length: 24 }, (_, i) => (
           <rect
-            key={i}
-            x={i === 0 ? 0 : (x(i - 1) + x(i)) / 2}
+            key={`h${i}`}
+            x={padL + slotW * i}
             y={0}
-            width={i === 0 || i === curve.length - 1 ? W / (curve.length - 1) / 2 : W / (curve.length - 1)}
-            height={H - PAD_B}
+            width={slotW}
+            height={H - padB}
             fill="transparent"
             onMouseEnter={() => setHover(i)}
             onMouseLeave={() => setHover(null)}
           />
         ))}
-        {/* 양 끝 시각만 표시 — 눈금이 많으면 오히려 안 읽힌다 */}
-        <text x={0} y={H - 3} fill="#64748b" fontSize={11}>
-          {curve[0][0]}
-        </text>
-        <text x={W} y={H - 3} fill="#64748b" fontSize={11} textAnchor="end">
-          {curve[curve.length - 1][0]}
-        </text>
+        {/* 축 라벨 — 4시간 간격 */}
+        {[0, 4, 8, 12, 16, 20].map((h) => (
+          <text key={h} x={x(h)} y={H - 6} textAnchor="middle" fill="#64748b" fontSize={10.5}>
+            {h}시
+          </text>
+        ))}
       </svg>
     </div>
   );
@@ -177,8 +190,8 @@ export function PlantScreen({
         </div>
       </Section>
 
-      <Section title="금일 발전량 추이">
-        <TodayChart curve={d.todayCurve} />
+      <Section title="시간별 출력">
+        <HourlyChart curve={d.todayCurve} capacityKw={d.capacityKw} />
       </Section>
 
       {/* 인버터 4대 — **정보 제공용 표**(2026-08-26 사용자 확정: 예지보전 같은 클릭 이벤트 없음).
@@ -198,26 +211,34 @@ export function PlantScreen({
             {d.inverters.map((inv) => {
               /* 통신 두절 이벤트 중인 인버터 — 값이 안 들어오므로 0으로 표시(2026-08-31 사용자 확정) */
               const down = commDown.includes(inv.id);
-              /* 예지보전 판정 — #2처럼 통신은 정상이고 값도 들어오는데 설비가 이상한 경우:
-                 값은 그대로 두고 **상태만** 배지로 표시한다(2026-08-31 사용자 확정) */
-              const verdict = INVERTER_HISTORY.find((h) => h.id === inv.id)?.verdict;
-              const warn = !down && verdict && verdict !== '정상';
+              /* 오류로 단정하는 것은 **통신 두절**뿐 — 명세가 connectionState 1 = 통신오류로 정의한다.
+                 상태 메시지(statusMsg)는 값을 그대로 보여주기만 한다(2026-09-09 사용자 확정):
+                 명세 응답 예제의 정상 값이 'Run' 이고 'Wait' 는 일출 전 대기라, 값이 있다고 이상이라 할 수 없다.
+                 아이티공간에서 상태 코드 목록을 받으면 그때 어떤 값이 이상인지 색을 입힌다.
+                 ⚠️ 예지보전 판정('점검 필요' 등)도 여기 넣지 않는다 — 인버터별 과거 이력이 없어 근거를 못 댄다 */
               return (
                 <tr key={inv.id} className="border-b border-white/5 last:border-0">
                   <td className="py-2 text-left">
                     <span className="flex items-center font-bold text-slate-200">
-                      {/* 점: 꺼짐=빨강(데이터 없음) / 점검 필요=주황(값은 있고 설비 이상) / 정상=초록.
-                          순간 출력에는 여전히 색을 안 칠한다(구름·새·지붕 방향일 수 있음) — 판정 근거는 예지보전(5일 지속) */}
-                      <Dot ok={inv.comm && !down} fault={warn} />
+                      {/* 점 = 통신. 순간 출력에는 색을 칠하지 않는다 — 구름·새·지붕 방향으로 한 대만 낮은 건 정상일 수 있다 */}
+                      <Dot ok={inv.comm && !down} />
                       {invLabel(inv.id)}
                       <span className="ml-1 text-[11.5px] font-normal text-slate-500">{inv.ratedKw}kW</span>
-                      {warn && (
-                        <span className="ml-1.5 rounded bg-amber-400/10 px-1 py-px text-[10.5px] font-bold text-amber-300">
-                          {verdict}
+                      {/* 통신이 끊기면 '오류'(명세 정의), 살아 있으면 인버터가 보낸 상태값을 그대로 */}
+                      {down ? (
+                        <span className="ml-1.5 rounded bg-red-500/15 px-1 py-px text-[10.5px] font-bold text-red-300">
+                          오류
                         </span>
+                      ) : (
+                        inv.statusMsg && (
+                          <span className="ml-1.5 rounded bg-white/10 px-1 py-px text-[10.5px] font-bold text-slate-300">
+                            {inv.statusMsg}
+                          </span>
+                        )
                       )}
                     </span>
                   </td>
+                  {/* 통신이 끊기면 값이 안 오므로 0 + 빨강. 그 외에는 API 가 준 값을 그대로(색 판정 없음) */}
                   <td className={`py-2 text-right font-bold ${down ? 'text-red-300' : 'text-slate-200'}`}>{fmt(down ? 0 : inv.acKw, 1)}</td>
                   <td className={`py-2 text-right font-bold ${down ? 'text-red-300' : 'text-slate-300'}`}>{fmt(down ? 0 : inv.dcKw, 1)}</td>
                   <td className={`py-2 text-right font-bold ${down ? 'text-red-300' : 'text-slate-300'}`}>{fmt(down ? 0 : inv.todayKwh, 1)}</td>
@@ -227,29 +248,8 @@ export function PlantScreen({
           </tbody>
         </table>
 
-        {/* 4대 아래 — "얼마 벌었나" 큰 박스(2026-08-26 사용자 확정): 금일·누적 금액 + 발전량.
-            금액 = 발전량 × 157.6원(자가소비로 아낀 전기요금, SELF_TARIFF) */}
-        <div className="mt-3 overflow-hidden rounded-xl border border-emerald-400/25 bg-gradient-to-br from-emerald-500/[0.12] to-emerald-500/[0.03]">
-          <div className="flex items-end justify-between px-4 pt-3">
-            <div>
-              <div className="flex items-center gap-1.5 text-[12px] font-bold text-emerald-200/80">
-                <MIcon name="payments" size={15} className="text-emerald-300" />
-                오늘 번 돈
-              </div>
-              <div className="mt-0.5 text-[24px] font-extrabold leading-none text-white">{won(d.todayKwh * RATE)}</div>
-            </div>
-            <div className="pb-0.5 text-right text-[11.5px] text-slate-400">
-              금일 발전량
-              <div className="text-[13px] font-bold text-slate-200">{fmt(d.todayKwh, 1)} kWh</div>
-            </div>
-          </div>
-          <div className="mt-3 flex items-center justify-between border-t border-white/10 px-4 py-2.5">
-            <span className="text-[12px] text-slate-400">
-              누적 절감액 <b className="ml-1 text-[14px] font-extrabold text-emerald-300">{wonShort(d.totalKwh * RATE)}</b>
-            </span>
-            <span className="text-[11.5px] text-slate-500">누적 {fmt(d.totalKwh)} kWh</span>
-          </div>
-        </div>
+        {/* 금액(오늘 번 돈·누적 절감액)은 여기 두지 않는다(2026-09-09 사용자 확정) —
+            발전소 상세는 "설비가 지금 어떤가"를 보는 화면이고, 얼마 아꼈는지는 시설 화면의 몫이다 */}
       </Section>
 
       {/* 발전량 시뮬레이션(#8). 재해 시뮬(지진·홍수·태풍)은 인천 개발물을 가져와 붙일 예정 — 우리 범위 아님 */}

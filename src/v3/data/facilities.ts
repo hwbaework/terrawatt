@@ -35,6 +35,10 @@ export interface Facility {
   lng: number;
   lat: number;
   model?: FacilityModel;
+  /** ITS 수집 API의 발전소 코드(plantCode) — 명세서 '발전사 코드' 표 기준. 실연동 시 이 값으로 조회한다 */
+  plantCode?: number;
+  /** 좌표가 얼마나 믿을 만한지 — 확정 부지가 아니면 여기에 밝힌다(예정 자산과 같은 규칙) */
+  locationNote?: string;
 }
 
 export const FACILITIES: Facility[] = [
@@ -49,6 +53,20 @@ export const FACILITIES: Facility[] = [
     lat: 35.50522,
     // 원본 실측 78.8×22×126.4m — 미터 단위로 만들어진 모델이라 브이월드 3D에선 배율 1
     model: { url: '/models/hanil-tube-opt.glb', targetSizeM: 115, rotationDeg: -65, scale3d: 1 },
+    plantCode: 17514,
+  },
+  /* 두 번째 발전소(2026-09-08 사용자 요청) — ITS 명세서 '발전사 코드' 표의 6곳 중 하나.
+     ⚠️ 지금 아는 것은 **이름과 발전소 코드뿐**이다: 3D 모델도, 부지 좌표도, 설비 스펙도 아직 없다.
+        그래서 건물을 세우지 않고 이름표만 띄우며, 좌표는 산단 안 임시 지점이다(예정 자산과 같은 규칙).
+        계측값도 지어내지 않는다 — 패널에 "연동 전" 자리만 잡는다(specs.ts 원칙). */
+  {
+    id: 'taesung',
+    type: '발전소',
+    name: '태성산업',
+    lng: 129.3505,
+    lat: 35.4975,
+    plantCode: 17512,
+    locationNote: '위치 미확정 — 산단 내 임시 지점',
   },
   // 한일튜브 ESS는 2026-07-29 사용자 지시로 내림(모델이 변전소 임시 대용이었음).
   // 컨테이너형 ESS 모델을 구하면 여기에 다시 추가하면 된다 — glb는 public/models에 보관 중.

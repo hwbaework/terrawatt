@@ -197,7 +197,7 @@ export const DT_SCREENS: DtScreen[] = [
         title: 'AI 분석 결과',
         items: [
           { label: '건전성 지수 (Health Index)', source: 'DX API-003 health', period: '10초', status: 'waiting', note: 'peak/mean/area 통계' },
-          { label: '설비별 위험성 등급', source: 'DX API-006 riskLevel', period: '1분', status: 'waiting', note: 'normal/caution/warning' },
+          { label: '설비별 위험성 등급', source: 'DX API-006 riskLevel', period: '1분', status: 'waiting', note: '5단계 danger/warning/caution/watch/normal (연계 v1.1)' },
         ],
       },
       {
@@ -236,11 +236,11 @@ export const DT_SCREENS: DtScreen[] = [
         title: '화재징후 판정 (DX 안전지수)',
         items: [
           { label: '전기안전지수', source: 'DX API-006 safetyIndex', period: '1분', status: 'waiting', note: '0~100' },
-          { label: '위험 등급', source: 'DX API-006 riskLevel', period: '1분', status: 'waiting', note: 'normal/caution/warning' },
-          { label: '항목별 위험', source: 'DX API-006 risks', period: '1분', status: 'waiting', note: '전류·전압·누설·고조파·온도·전력품질' },
-          { label: '판정 근거', source: 'DX API-006 reason', period: '1분', status: 'waiting' },
+          { label: '위험 등급', source: 'DX API-006 riskLevel', period: '1분', status: 'waiting', note: '5단계 danger/warning/caution/watch/normal (연계 v1.1)' },
+          { label: '항목별 위험', source: 'DX API-006 risks', period: '1분', status: 'waiting', note: '전류·전압·누설·고조파·온도·역률·아크(제공 전 미산출)' },
+          { label: '판정 근거', source: 'DX API-006 risks 중 가장 높은 항목(reason 필드 없음, 연계 v1.1)', period: '5분', status: 'waiting' },
           /* 어느 AI가 내린 판정인지 — 문의·대응 시 "누가 왜 그렇게 판단했나"를 말할 수 있게(2026-08-31 사용자) */
-          { label: '판정 모델', source: 'DX API-006 modelName·modelVersion', status: 'waiting', note: 'umei_integrated_safety 등 3종' },
+          { label: '판정 모델', source: 'DX API-006 modelName·modelVersion', status: 'waiting', note: '화면은 umei_integrated_safety 만 (연계 v1.1)' },
         ],
       },
       /* ⚠️ 화면에서 뺀 항목(2026-08-26 사용자 확정 — "데이터가 없으면 사용할 수 없는 데이터"):

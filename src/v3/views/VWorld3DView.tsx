@@ -4,7 +4,6 @@ import {
   cameraHeight,
   isMapStarted,
   lookAtPlace,
-  onFacilityClick,
   startVworldMap,
   waitForEngine,
   type EngineStatus,
@@ -31,23 +30,16 @@ export function VWorld3DView({
   bindHome,
   onSelect,
   onSelectAsset,
-  onQuickAction,
-  onOpenView,
 }: {
   bindHome: (fn: () => void) => void;
-  /** 건물을 클릭하면 시설 id를 알려준다 */
+  /** 발전소 이름표(멀리서 볼 때만 보임)를 클릭하면 시설 id를 알려준다 */
   onSelect: (facilityId: string) => void;
-  /** 콜아웃 패널의 바로가기(시뮬·화재·지진·침수) — AppV3 의 패널 전환으로 연결(2026-08-26) */
-  onQuickAction?: (action: 'gen' | 'fire' | 'quake' | 'flood' | 'predict') => void;
-  /** 콜아웃의 뷰 그림(구조·모니터링) — 지도 가운데 뷰 팝업으로 연결 */
-  onOpenView?: (view: 'graph') => void;
   /** 예정 자산(수소·ORC·ESS·V2G) 이름표를 클릭하면 자산 id를 알려준다 */
   onSelectAsset: (assetId: string) => void;
 }) {
   const mapRef = useRef<VwMap | null>(null);
   const [status, setStatus] = useState<EngineStatus>({ state: 'loading' });
   const [placedCount, setPlacedCount] = useState(0); // 세워진 내 건물 수 (확인용 표시)
-  const disposeClickRef = useRef<() => void>(() => {});
 
   useEffect(() => {
     let cancelled = false;
@@ -122,8 +114,7 @@ export function VWorld3DView({
         if (n > 0 || ++tries > 20) {
           window.clearInterval(t);
           setPlacedCount(n);
-          // 건물이 올라간 뒤에 클릭 듣기 시작
-          if (n > 0) disposeClickRef.current = onFacilityClick(onSelect);
+          // 3D 건물 클릭은 제거(2026-09-07 사용자 확정) — 시설 정보는 좌상단 카드·오른쪽 아이콘 바로만 연다
         }
       }, 300);
     }
@@ -141,19 +132,18 @@ export function VWorld3DView({
 
     return () => {
       cancelled = true;
-      disposeClickRef.current();
       clearFacilityModels();
     };
-  }, [bindHome, onSelect]);
+  }, [bindHome]);
 
   return (
     <>
       {/* 브이월드 엔진이 그리는 자리 */}
       <div id="vmap" style={{ height: '100dvh', width: '100vw' }} />
 
-      {/* 건물 위 이름표 — 누르면 시설 정보가 열린다 (예정 자산 이름표 포함) */}
+      {/* 지도 위 이름표 — 발전소는 멀리서 볼 때만, 예정 자산은 항상 */}
       {status.state === 'ready' && placedCount > 0 && (
-        <FacilityLabels onSelect={onSelect} onSelectAsset={onSelectAsset} onQuickAction={onQuickAction} onOpenView={onOpenView} />
+        <FacilityLabels onSelect={onSelect} onSelectAsset={onSelectAsset} />
       )}
 
       {status.state === 'loading' && (

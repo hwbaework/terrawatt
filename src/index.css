@@ -143,3 +143,9 @@ body,
 #vmap #naviBottomPannel3d {
   display: none !important;
 }
+
+/* 대피요령 영상 자리(예시)의 재생 진행 막대 — DisopSteps VideoBox */
+@keyframes videoProgress {
+  from { width: 0%; }
+  to { width: 100%; }
+}

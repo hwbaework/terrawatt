@@ -27,7 +27,8 @@ export const FACILITY_SPECS: Record<string, FacilitySpec> = {
     address: '울산광역시 남구 사평로 203 (부곡동)',
     contractKw: 1200,
     rePercent: 18.7,
-    status: '가동 중',
+    // 상태 낱말은 **정상 / 오류** 둘로 통일 — demoReadings.ts 의 PlantStatus 참고
+    status: '정상',
     reTargetPercent: 30,
     // ⚠️ 참고 화면에서 옮겨온 값 — 계약서·고지서로 대조해 확정할 것
     confirmed: false,

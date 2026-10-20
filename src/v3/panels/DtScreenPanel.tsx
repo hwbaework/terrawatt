@@ -1,8 +1,16 @@
 import { DT_SCREENS, type DtItem } from '../data/dtScreens';
 import type { PlantEventKind } from '../data/plantEvents';
-import { Drawer, Section } from './Drawer';
+import { useState } from 'react';
+import { createPortal } from 'react-dom';
+import { ActionButton, Drawer, Section } from './Drawer';
+import { DxDashboard } from './DxDashboard';
 import { PlantScreen } from './PlantScreen';
 import { PredictiveScreen } from './PredictiveScreen';
+import { SafetyScreen } from './SafetyScreen';
+import { FACILITIES } from '../data/facilities';
+
+/** 이 화면들은 한일튜브(홈) 기준 — 발전소 코드는 시설 목록에서 */
+const HOME_PLANT_CODE = FACILITIES.find((f) => f.id === 'hanil-tube')?.plantCode;
 
 /* 디지털트윈 화면 — 계획서에 정의된 항목을 그대로 보여준다.
 
@@ -59,6 +67,8 @@ export function DtScreenPanel({
   onRunQuake: () => void;
 }) {
   const screen = DT_SCREENS.find((s) => s.id === screenId);
+  // 예지보전·안전 통합 대시보드(아이티공간 연계 v1.1 7장) — 두 화면에서 연다
+  const [dash, setDash] = useState(false);
   if (!screen) return null;
 
   return (
@@ -67,20 +77,52 @@ export function DtScreenPanel({
       {screen.id === 'plant' ? (
         <PlantScreen onRunGen={onRunGen} onEvent={onEvent} activeEvent={activeEvent} />
       ) : screen.id === 'predictive' ? (
-        <PredictiveScreen />
+        <>
+          <PredictiveScreen plantCode={HOME_PLANT_CODE} />
+          <ActionButton label="예지보전·안전 대시보드" onClick={() => setDash(true)} />
+        </>
       ) : (
         <>
-          {screen.groups.map((g) => (
-            <Section key={g.title} title={g.title}>
-              {g.items.map((it) => (
-                <ItemRow key={it.label} item={it} />
-              ))}
-            </Section>
-          ))}
+          {/* 안전·화재는 DX 실값(아이티공간 연계 v1.1) — 그 밖은 항목 뼈대 */}
+          {screen.id === 'safety' ? (
+            <>
+              <SafetyScreen plantCode={HOME_PLANT_CODE} />
+              <ActionButton label="예지보전·안전 대시보드" onClick={() => setDash(true)} />
+            </>
+          ) : (
+            screen.groups.map((g) => (
+              <Section key={g.title} title={g.title}>
+                {g.items.map((it) => (
+                  <ItemRow key={it.label} item={it} />
+                ))}
+              </Section>
+            ))
+          )}
           {/* 재난 대응 시뮬 = DiSOP 영역 — 이 화면 맨 아래에서 실행한다 (p.159 CASE01 화재·02 지진·03 침수).
               버튼은 좌우로 나란히 (사용자 지시) — 셋이 되면서 좁아져 라벨은 재난 이름만 */}
           {screen.id === 'safety' && (
             <div className="px-5 py-3">
+              {/* 알람 테스트(2026-09-07 사용자 확정) — 설비(통신·전원) 알람은 발전소 상세의 설비 상태 클릭,
+                  나머지 2계열은 여기서 눌러 본다. 근거: 전기화재 위험 = ITS API-006 전기안전지수(아크·누전),
+                  태풍 = 기상청 기상특보. 실연동 시 이 버튼이 자동 감지(폴링)로 바뀐다 */}
+              <div className="mb-1.5 text-[12px] font-bold uppercase tracking-wider text-slate-500">알람 테스트</div>
+              <div className="mb-3 flex gap-2">
+                {(
+                  [
+                    ['전기화재 위험', 'safetyArc'],
+                    ['태풍경보', 'typhoon'],
+                  ] as const
+                ).map(([label, kind]) => (
+                  <button
+                    key={kind}
+                    type="button"
+                    onClick={() => onEvent(kind)}
+                    className="flex-1 rounded-lg bg-red-500/15 px-3 py-2.5 text-[12px] font-bold text-red-300 transition-colors hover:bg-red-500/25"
+                  >
+                    {label}
+                  </button>
+                ))}
+              </div>
               <div className="mb-1.5 text-[12px] font-bold uppercase tracking-wider text-slate-500">시뮬레이션</div>
               <div className="flex gap-2">
                 {(
@@ -104,6 +146,8 @@ export function DtScreenPanel({
           )}
         </>
       )}
+      {/* 서랍(aside)의 blur·애니메이션이 fixed 를 가두므로 body 로 띄운다 */}
+      {dash && createPortal(<DxDashboard initialPlant={HOME_PLANT_CODE} onClose={() => setDash(false)} />, document.body)}
     </Drawer>
   );
 }

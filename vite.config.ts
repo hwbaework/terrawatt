@@ -5,6 +5,8 @@ import tailwindcss from '@tailwindcss/vite';
 export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, process.cwd(), '');
   const energyApi = env.VITE_ENERGY_API_BASE || '';
+  // DX 예지보전·안전지수(UMEI) — 키는 VITE_ 가 아니라 번들에 안 들어간다. 배포는 worker/index.ts 가 같은 일을 한다
+  const umeiKey = env.UMEI_API_KEY || '';
 
   return {
     plugins: [react(), tailwindcss()],
@@ -17,17 +19,29 @@ export default defineConfig(({ mode }) => {
       // (조용히 5174 등으로 바뀌면 브이월드가 등록 안 된 주소로 보고 지도를 안 준다)
       port: 5173,
       strictPort: true,
-      proxy: energyApi
-        ? {
-            // 발전소 실시간 데이터 — 브라우저 CORS 회피용 dev 프록시
-            '/energy-api': {
-              target: energyApi,
-              changeOrigin: true,
-              rewrite: (path) => path.replace(/^\/energy-api/, ''),
-              headers: { origin: 'https://energy.rmsgroup.co.kr' },
-            },
-          }
-        : undefined,
+      proxy: {
+        ...(energyApi
+          ? {
+              // 발전소 실시간 데이터 — 브라우저 CORS 회피용 dev 프록시
+              '/energy-api': {
+                target: energyApi,
+                changeOrigin: true,
+                rewrite: (path: string) => path.replace(/^\/energy-api/, ''),
+                headers: { origin: 'https://energy.rmsgroup.co.kr' },
+              },
+            }
+          : {}),
+        ...(umeiKey
+          ? {
+              '/umei-api': {
+                target: 'https://umei.uyegdx.com',
+                changeOrigin: true,
+                rewrite: (path: string) => path.replace(/^\/umei-api/, ''),
+                headers: { 'X-API-Key': umeiKey },
+              },
+            }
+          : {}),
+      },
     },
   };
 });
