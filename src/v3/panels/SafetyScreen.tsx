@@ -183,20 +183,15 @@ export function SafetyScreen({ plantCode }: { plantCode: number | undefined }) {
         </table>
       </Section>
 
-      {/* 인버터별 — 등급이 나쁜 순. 누르면 그 인버터의 상세 · 추이 */}
+      {/* 인버터별 — 인버터 번호 순(#1 → #4). 누르면 그 인버터의 상세 · 추이 */}
       <Section title={`인버터별 (${sensors.length})`}>
         <div className="space-y-1.5">
-          {[...sensors]
+          {sensors
             .map((s) => ({
               s,
               sf: safety.items.find((x) => x.macAddress === s.mac),
               lt: latest.items.find((x) => x.macAddress === s.mac),
             }))
-            .sort(
-              (a, b) =>
-                (a.sf ? RISK_ORDER.indexOf(a.sf.riskLevel) : 9) - (b.sf ? RISK_ORDER.indexOf(b.sf.riskLevel) : 9) ||
-                (a.sf?.safetyIndex ?? 101) - (b.sf?.safetyIndex ?? 101),
-            )
             .map(({ s, sf, lt }) => {
               const sLate = isSafetyLate(sf);
               const stale = isStale(lt);

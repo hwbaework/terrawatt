@@ -38,7 +38,8 @@ export const invName = (s: DxSensor) => `인버터 #${s.inv}`;
 export const PLANT_GROUP: Record<number, number[]> = { 17511: [17511, 17558], 17558: [17511, 17558] };
 export const sensorsOf = (plantCode: number) => {
   const codes = PLANT_GROUP[plantCode] ?? [plantCode];
-  return DX_SENSORS.filter((s) => codes.includes(s.plantCode));
+  // 인버터 번호 순(#1 → #4) — 모든 목록 · 표가 같은 순서
+  return DX_SENSORS.filter((s) => codes.includes(s.plantCode)).sort((a, b) => a.inv - b.inv);
 };
 
 /* ── 응답 형식(문서 5장) ── */
