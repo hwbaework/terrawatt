@@ -21,7 +21,7 @@ import { TrendChart } from './TrendChart';
    · 0~100 점수만 — 전기안전지수(높을수록 양호) · 등급 5가지 · 항목별 위험점수(정수, 높을수록 위험) · 아크.
      센서가 잰 값(℃ · A · %)은 예지보전에 있다 — 여기 넣지 않는다
    · 위 = 인버터 중 가장 나쁜 지수 · 등급([등급]을 누르면 5가지), 아크 지수(판정 보류)
-   · 인버터별 = 번호 순, 줄 = 지수 · 등급, 누르면 항목별 위험점수(가장 높은 항목 강조) · 산출 시각 · 24시간 추이
+   · 센서별 전기안전지수 = 번호 순(이름은 인버터 #1), 줄 = 지수 · 등급, 누르면 항목별 위험점수(숫자, 가장 높은 항목 amber) · 산출 시각 · 24시간 추이(올리면 시각 · 지수 · 등급)
    · 계산식은 화면에 쓰지 않는다. 값이 없으면 '미산출', 15분 넘게 멈추면 '갱신 지연'(문서 6.2)
    · 등급 색은 울산과 같게 — 위험 · 경고 빨강, 주의 amber, 관찰 회색, 정상 초록 */
 
@@ -54,26 +54,21 @@ function worstSafety(xs: DxSafety[]) {
     .sort((a, b) => RISK_ORDER.indexOf(a.riskLevel) - RISK_ORDER.indexOf(b.riskLevel) || (a.safetyIndex ?? 101) - (b.safetyIndex ?? 101))[0];
 }
 
-/** 항목별 위험점수 0~100(정수) — 가장 높은 항목이 지수를 낮춘 항목이라 강조(문서 6.2), 아크는 제공 전까지 미산출 */
-function RiskBars({ sf }: { sf: DxSafety }) {
+/** 항목별 위험점수 0~100(정수) — 울산 표처럼 숫자만, 가장 높은 항목(지수를 낮춘 항목)은 amber(문서 6.2), 아크는 제공 전까지 미산출 */
+function RiskScores({ sf }: { sf: DxSafety }) {
   const top = topRisk(sf);
   const late = isSafetyLate(sf);
   return (
-    <div className="space-y-1.5">
+    <div className="grid grid-cols-7 gap-1 text-center text-[12px]">
       {RISK_ITEMS.map((it) => {
         const v = sf.risks[it.key];
         const isTop = !late && top?.label === it.label;
         return (
-          <div key={it.key} className="flex items-center gap-2 text-[12px]">
-            <span className={`w-10 shrink-0 ${isTop ? 'font-bold text-amber-300' : 'text-slate-400'}`}>{it.label}</span>
-            <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-white/[0.06]">
-              {typeof v === 'number' && (
-                <div className={`h-full rounded-full ${isTop ? 'bg-amber-500' : 'bg-slate-500'}`} style={{ width: `${Math.min(100, Math.max(0, v))}%` }} />
-              )}
-            </div>
-            <span className={`w-12 shrink-0 text-right ${typeof v !== 'number' ? 'text-slate-500' : isTop ? 'font-bold text-amber-300' : 'text-slate-200'}`}>
+          <div key={it.key} className="rounded bg-white/[0.04] py-1.5">
+            <div className="text-[11px] text-slate-500">{it.label}</div>
+            <div className={`mt-0.5 font-bold ${typeof v !== 'number' ? 'text-[11px] text-slate-500' : isTop ? 'text-amber-400' : late ? 'text-slate-500' : 'text-slate-200'}`}>
               {typeof v === 'number' ? fx(v, 0) : NONE}
-            </span>
+            </div>
           </div>
         );
       })}
@@ -89,10 +84,16 @@ function SafetyTrend({ mac }: { mac: string }) {
   return pts.length ? (
     <TrendChart
       pts={pts}
+      tip={(p) => (
+        <span className="inline-flex items-center gap-1.5">
+          <span className="font-bold">{fx(p.v)}</span>
+          <Pill level={p.l} />
+        </span>
+      )}
       max={100}
       min={Math.max(0, Math.floor(Math.min(...pts.map((p) => p.v)) / 10) * 10 - 10)}
       marks={marks}
-      unit="전기안전지수 · 5분"
+      unit="전기안전지수 · 5분 · 점 = 등급이 바뀐 시각"
       label="전기안전지수 24시간 추이"
     />
   ) : (
@@ -158,10 +159,11 @@ export function SafetyScreen({ plantCode }: { plantCode: number | undefined }) {
             <span className="rounded bg-white/10 px-1.5 py-0.5 text-[12px] font-bold text-slate-400">판정 보류</span>
           </span>
         </div>
+        <p className="-mt-1 pb-2 text-[12px] text-slate-500">시범 산출 중</p>
       </Section>
 
       {/* 인버터별 — 번호 순. 줄 = 지수 · 등급, 누르면 항목별 위험점수 · 추이 */}
-      <Section title="인버터별">
+      <Section title="센서별 전기안전지수">
         <div className="space-y-1.5">
           {sensors.map((s) => {
             const sf = safety.items.find((x) => x.macAddress === s.mac);
@@ -187,7 +189,7 @@ export function SafetyScreen({ plantCode }: { plantCode: number | undefined }) {
                     {sf ? (
                       <>
                         <p className="mb-1.5 text-[11.5px] text-slate-500">항목별 위험점수 (0~100, 높을수록 위험)</p>
-                        <RiskBars sf={sf} />
+                        <RiskScores sf={sf} />
                         <p className="mt-2 text-[12px] text-slate-500">산출 {hhmm(sf.diagnosedAt)}</p>
                       </>
                     ) : (

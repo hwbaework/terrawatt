@@ -44,12 +44,12 @@ function Line({ label, value, unit }: { label: string; value: string | null; uni
 /** 추이로 고를 수 있는 값 — API-005 5분 특징값(문서 5.3). 전류는 R/S/T 중 가장 큰 상.
  *  온도 · 고조파 THD 도 들어온다고 보고 둔다(2026-10-29 사용자) — 응답이 null 이면 '미산출', 울산 플랫폼과 같은 항목 */
 const TRENDS: { code: string; label: string; unit: string; pick: (v: number | number[] | null) => number | null }[] = [
-  { code: 'current_rst', label: '전류', unit: 'A · R/S/T 최대', pick: (v) => (Array.isArray(v) ? (v.length ? Math.max(...v) : null) : v) },
-  { code: 'voltage_mean', label: '전압', unit: 'V · 평균', pick: firstNum },
-  { code: 'ground_current', label: '누설전류', unit: 'A · 평균', pick: firstNum },
-  { code: 'power_factor', label: '역률', unit: '% · 평균', pick: firstNum },
-  { code: 'thdi', label: '고조파 THD', unit: '% · 평균', pick: firstNum },
-  { code: 'temperature', label: '온도', unit: '℃ · 평균', pick: firstNum },
+  { code: 'current_rst', label: '전류', unit: 'A', pick: (v) => (Array.isArray(v) ? (v.length ? Math.max(...v) : null) : v) },
+  { code: 'voltage_mean', label: '전압', unit: 'V', pick: firstNum },
+  { code: 'ground_current', label: '누설전류', unit: 'A', pick: firstNum },
+  { code: 'power_factor', label: '역률', unit: '%', pick: firstNum },
+  { code: 'thdi', label: '고조파 THD', unit: '%', pick: firstNum },
+  { code: 'temperature', label: '온도', unit: '℃', pick: firstNum },
 ];
 
 /** 인버터 하나 — 측정값 추이 */
@@ -79,7 +79,7 @@ function InverterTrend({ mac }: { mac: string }) {
         ))}
       </div>
       {pts.length ? (
-        <TrendChart pts={pts} unit={t.unit} label={`${t.label} 24시간 추이`} />
+        <TrendChart pts={pts} unit={`${t.label} (${t.unit}) · 5분`} label={`${t.label} 24시간 추이`} tip={(p) => `${fx(p.v, t.code === 'ground_current' ? 3 : 1)} ${t.unit}`} />
       ) : (
         <div className="flex h-[110px] items-center justify-center rounded-lg border border-dashed border-white/10 text-[12px] text-slate-500">
           {hist.status === 'loading' ? '불러오는 중' : NONE}
@@ -108,7 +108,7 @@ export function DxSensorsSection({ plantCode }: { plantCode?: number }) {
       <Section title="설비 상태">
         <div className="border-b border-white/5 py-2">
           <div className="flex items-baseline justify-between">
-            <span className="text-[13px] font-semibold text-slate-200">Health Index</span>
+            <span className="text-[13px] font-semibold text-slate-200">설비 상태 (Health Index)</span>
             <span className={`text-[18px] font-extrabold ${low ? 'text-slate-100' : 'text-slate-500'}`}>
               {fx(low?.v) ?? NONE}
               {low && <span className="ml-1 text-[12px] font-bold text-slate-500">/ 100</span>}
@@ -124,7 +124,7 @@ export function DxSensorsSection({ plantCode }: { plantCode?: number }) {
         </div>
       </Section>
 
-      <Section title="인버터별 현황">
+      <Section title="설비별 상태">
         <div className="space-y-1.5">
           {rows.map(({ s, d }) => {
             const stale = isStale(d);
@@ -162,15 +162,17 @@ export function DxSensorsSection({ plantCode }: { plantCode?: number }) {
                       <p className="text-[12px] text-slate-500">{d ? `수집 중단 · 마지막 수신 ${d.receivedAt}` : stopLabel(s.mac, latest.status === 'ok')}</p>
                     ) : (
                       <dl className="space-y-1.5 text-[12.5px]">
-                        <Line label="Health Index" value={fx(d?.health?.healthIndex)} unit="점" />
-                        <Line label="전류 R/S/T" value={rst(metric(d, 'current_rst'))} unit="A" />
-                        <Line label="전압 R/S/T" value={rst(metric(d, 'voltage_rst'))} unit="V" />
-                        <Line label="역률" value={fx(firstNum(metric(d, 'power_factor')))} unit="%" />
-                        <Line label="주파수" value={fx(firstNum(metric(d, 'frequency')), 2)} unit="Hz" />
-                        <Line label="누설전류" value={fx(firstNum(metric(d, 'ground_current')), 3)} unit="A" />
-                        <Line label="고조파 THD" value={fx(firstNum(metric(d, 'thdi')))} unit="%" />
-                        <Line label="온도" value={fx(firstNum(metric(d, 'temperature')))} unit="℃" />
-                        <Line label="측정 시각" value={d ? hhmm(d.observedAt) : null} />
+                        {/* 울산 예지보전 설비별 상태 표와 같은 칸 · 순서 · 이름 */}
+                        <Line label="Health" value={fx(d?.health?.healthIndex)} />
+                        <Line label="전류 R/S/T (A)" value={rst(metric(d, 'current_rst'))} />
+                        <Line label="전압 R/S/T (V)" value={rst(metric(d, 'voltage_rst'))} />
+                        <Line label="유효전력 (kW)" value={fx(kw)} />
+                        <Line label="역률 (%)" value={fx(firstNum(metric(d, 'power_factor')))} />
+                        <Line label="주파수 (Hz)" value={fx(firstNum(metric(d, 'frequency')), 2)} />
+                        <Line label="누설전류 (A)" value={fx(firstNum(metric(d, 'ground_current')), 3)} />
+                        <Line label="고조파 THD (%)" value={fx(firstNum(metric(d, 'thdi')))} />
+                        <Line label="온도 (℃)" value={fx(firstNum(metric(d, 'temperature')))} />
+                        <Line label="측정 시각" value={d ? d.observedAt.slice(11, 19) : null} />
                       </dl>
                     )}
                     {/* 수집이 멈춰도 지난 추이는 볼 수 있다 — 연계 대상 센서만 */}
