@@ -118,6 +118,11 @@ export function minutesSince(kst: string | null | undefined, now = Date.now()): 
   const t = Date.parse(kst.replace(' ', 'T') + '+09:00');
   return Number.isNaN(t) ? null : (now - t) / 60000;
 }
+/** 연계 대상 센서 — 문서 3장 9대. 아직 목록에 없는 장비(PENDING:)는 대상 아님 */
+export const isDxTarget = (mac: string) => !mac.startsWith('PENDING:');
+/** 값이 안 들어온 센서 — 대상이면 수집 중단(정상 응답에 없어도, 문서 8-4), 대상 아니면 미수신.
+ *  응답 자체가 없으면(불러오는 중 · 오류) 판단할 수 없어 미산출 */
+export const stopLabel = (mac: string, responded = true) => (!responded ? '미산출' : isDxTarget(mac) ? '수집 중단' : '미수신');
 /** 수집 중단 — 최신 receivedAt 이 5분 넘게 멈춤(문서 8-4) */
 export const isStale = (d: DxLatest | undefined) => {
   const m = minutesSince(d?.receivedAt);

@@ -10,6 +10,7 @@ import {
   isSafetyLate,
   isStale,
   minutesSince,
+  stopLabel,
   sensorsOf,
   topRisk,
   useDxLatest,
@@ -213,7 +214,7 @@ export function DxDashboard({ onClose, initialPlant = 17514 }: { onClose: () => 
                           )}
                         </td>
                         <td className={`py-2 pr-3 ${!stale && r.lt?.health?.healthIndex != null ? 'text-slate-200' : 'text-slate-500'}`}>
-                          {stale ? (r.lt ? '수집 중단' : '미수신') : (fx(r.lt?.health?.healthIndex) ?? NONE)}
+                          {stale ? stopLabel(r.mac, latest.status === 'ok') : (fx(r.lt?.health?.healthIndex) ?? NONE)}
                         </td>
                         <td className="py-2 text-slate-300">{t ? t.label : '—'}</td>
                       </tr>

@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { InfoHint } from './InfoHint';
-import { firstNum, hhmm, isStale, metric, sensorsOf, useDxLatest, type DxLatest } from '../data/umeiDx';
+import { firstNum, hhmm, isDxTarget, isStale, metric, sensorsOf, stopLabel, useDxLatest, type DxLatest } from '../data/umeiDx';
 import { Section } from './Drawer';
 
 /* 예지보전 › DX 센서별 — API-003(아이티공간 연계 v1.1).
@@ -71,12 +71,12 @@ export function DxSensorsSection({ plantCode }: { plantCode?: number }) {
               >
                 <span className="flex items-center text-[13.5px] font-bold text-slate-200">
                   {/* 점 — 수신 중 초록 / 수집 중단 빨강 */}
-                  <span className={`mr-1.5 inline-block h-[7px] w-[7px] shrink-0 rounded-full ${!d ? 'bg-slate-500' : stale ? 'bg-red-400' : 'bg-emerald-400'}`} />
+                  <span className={`mr-1.5 inline-block h-[7px] w-[7px] shrink-0 rounded-full ${!isDxTarget(s.mac) || latest.status !== 'ok' ? 'bg-slate-500' : stale ? 'bg-red-400' : 'bg-emerald-400'}`} />
                   {s.deviceName}
                 </span>
                 <span className="flex items-baseline gap-1">
                   {stale ? (
-                    <span className="text-[12px] font-bold text-slate-500">{d ? '수집 중단' : '미수신'}</span>
+                    <span className="text-[12px] font-bold text-slate-500">{stopLabel(s.mac, latest.status === 'ok')}</span>
                   ) : (
                     <>
                       <span className={`text-[15px] font-extrabold ${hi != null ? 'text-slate-100' : 'text-slate-500'}`}>{fx(hi) ?? NONE}</span>
@@ -88,7 +88,7 @@ export function DxSensorsSection({ plantCode }: { plantCode?: number }) {
               {isOpen && (
                 <div className="border-t border-white/10 px-3 py-2.5">
                   {stale ? (
-                    <p className="text-[12px] text-slate-500">{d ? `수집 중단 · 마지막 수신 ${d.receivedAt}` : '미수신'}</p>
+                    <p className="text-[12px] text-slate-500">{d ? `수집 중단 · 마지막 수신 ${d.receivedAt}` : stopLabel(s.mac, latest.status === 'ok')}</p>
                   ) : (
                     <dl className="space-y-1.5 text-[12.5px]">
                       <Line label="전류 R/S/T" value={rst(metric(d, 'current_rst'))} unit="A" />

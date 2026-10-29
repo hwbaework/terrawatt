@@ -7,7 +7,9 @@ import {
   firstNum,
   hhmm,
   isSafetyLate,
+  isDxTarget,
   isStale,
+  stopLabel,
   metric,
   sensorsOf,
   topRisk,
@@ -161,6 +163,9 @@ export function SafetyScreen({ plantCode }: { plantCode: number | undefined }) {
                   >
                     <span className="text-[13px] font-bold text-slate-200">{s.deviceName}</span>
                     <span className="flex items-center gap-2 text-[12px]">
+                      {stale && isDxTarget(s.mac) && latest.status === 'ok' && (
+                        <span className="rounded border border-white/15 px-1.5 py-0.5 font-bold text-slate-400">수집 중단</span>
+                      )}
                       <span className="text-slate-400">{t ? `${t.label} ${fx(t.score)}` : ''}</span>
                       <span className={`font-extrabold ${sf && !sLate ? 'text-slate-100' : 'text-slate-500'}`}>
                         {fx(sf?.safetyIndex) ?? NONE}
@@ -173,7 +178,7 @@ export function SafetyScreen({ plantCode }: { plantCode: number | undefined }) {
                   {isOpen && (
                     <div className="border-t border-white/10 px-3 py-1.5">
                       {stale ? (
-                        <p className="py-1.5 text-[12px] text-slate-500">{lt ? '수집 중단' : '미수신'}</p>
+                        <p className="py-1.5 text-[12px] text-slate-500">{stopLabel(s.mac, latest.status === 'ok')}</p>
                       ) : (
                         <>
                           <Row label="설비 온도" value={fx(firstNum(metric(lt, 'temperature')))} unit="℃" />
