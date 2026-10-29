@@ -91,11 +91,11 @@ function groupsForScreen(a: PlannedAsset, screenId: string) {
 }
 
 /** 예지보전은 자산 공통 — DT-PM-01(아이티공간 UYeG) 결과 4종을 받는다 */
+/* 예지보전 = 센서가 잰 값 · Health Index(울산 플랫폼 기준, 2026-10-29). 잔여수명 · 고장예지는 API 소스가 없고,
+   위험등급은 안전(전기안전지수) 쪽이라 뺐다 */
 const PM_ITEMS: { label: string; unit?: string }[] = [
   { label: '건전성 지수 (Health Index)' },
-  { label: '잔여수명 (RUL)', unit: '개월' },
-  { label: '고장예지·정비시기' },
-  { label: '위험등급 (단계 수 협의중)' },
+  { label: '발전량 예측', unit: 'kWh' },
 ];
 
 export function AssetDtStub({
@@ -129,7 +129,7 @@ export function AssetDtStub({
     >
       {screenId === 'predictive' ? (
         <>
-          <Section title="AI 분석 결과 — 아이티공간 UYeG">
+          <Section title="설비 상태 — 아이티공간 UYeG">
             <div className="grid grid-cols-2 gap-2">
               {PM_ITEMS.map((it) => (
                 <ExpectedTile key={it.label} label={it.label} unit={it.unit} />

@@ -194,10 +194,11 @@ export const DT_SCREENS: DtScreen[] = [
       {
         /* 잔여수명·정비 이상 시기 예측은 뺐다(2026-08-26) — API 명세에 소스가 없어 사용할 수 없는 데이터.
            Health Index 추세로 파생 가능해지면 그때 되살린다 */
-        title: 'AI 분석 결과',
+        /* 등급(API-006 riskLevel)은 0~100 점수 쪽이라 안전으로(2026-10-29 사용자 — 울산 플랫폼 기준) */
+        title: '설비 상태',
         items: [
-          { label: '건전성 지수 (Health Index)', source: 'DX API-003 health', period: '10초', status: 'waiting', note: 'peak/mean/area 통계' },
-          { label: '설비별 위험성 등급', source: 'DX API-006 riskLevel', period: '1분', status: 'waiting', note: '5단계 danger/warning/caution/watch/normal (연계 v1.1)' },
+          { label: '건전성 지수 (Health Index)', source: 'DX API-003 health', period: '1시간', status: 'waiting', note: 'peak/mean/area 통계' },
+          { label: '발전량 예측', source: '아이티공간 발전량 예측(문서 6.3)', period: '15분', status: 'waiting', note: '외부 제공 전' },
         ],
       },
       {
@@ -214,7 +215,7 @@ export const DT_SCREENS: DtScreen[] = [
 
   /* ── ② 안전예방·화재 ──
         ★ 2026-08-26 재정리: ITS_울산_에자자_수집데이터_API_명세서_v1.2 로 **실제 받을 수 있는 값**과
-          아닌 것을 갈랐다. 전기 징후 = DX 전기설비(API-003/005), 판정 = DX 안전지수(API-006/007).
+          아닌 것을 갈랐다. 안전 = DX 전기안전지수(API-006/007) 0~100 점수만(2026-10-29 — 센서가 잰 값은 예지보전).
           열화상 카메라·연기 감지는 명세에 없다 — 별도 센서 도입 전엔 못 받는 값이라 그렇게 표기. ── */
   {
     id: 'safety',
@@ -224,21 +225,12 @@ export const DT_SCREENS: DtScreen[] = [
     summary: '과열·연기·누수를 미리 잡는다',
     groups: [
       {
-        title: '전기 징후 (DX 전기설비)',
+        title: '전기안전지수 (DX)',
         items: [
-          { label: '누설전류', unit: 'A', source: 'DX 스마트센서 API-003 ground_current', period: '10초', status: 'waiting', note: '누전 = 전기화재 전조' },
-          { label: '전류 불평형', unit: '%', source: 'DX 스마트센서 API-003 current_unbalance', period: '10초', status: 'waiting' },
-        ],
-      },
-      {
-        title: '화재징후 판정 (DX 안전지수)',
-        items: [
-          { label: '전기안전지수', source: 'DX API-006 safetyIndex', period: '1분', status: 'waiting', note: '0~100' },
-          { label: '위험 등급', source: 'DX API-006 riskLevel', period: '1분', status: 'waiting', note: '5단계 danger/warning/caution/watch/normal (연계 v1.1)' },
-          { label: '항목별 위험', source: 'DX API-006 risks', period: '1분', status: 'waiting', note: '전류·전압·누설·고조파·온도·역률·아크(제공 전 미산출)' },
-          { label: '판정 근거', source: 'DX API-006 risks 중 가장 높은 항목(reason 필드 없음, 연계 v1.1)', period: '5분', status: 'waiting' },
-          /* 어느 AI가 내린 판정인지 — 문의·대응 시 "누가 왜 그렇게 판단했나"를 말할 수 있게(2026-08-31 사용자) */
-          { label: '판정 모델', source: 'DX API-006 modelName·modelVersion', status: 'waiting', note: '화면은 umei_integrated_safety 만 (연계 v1.1)' },
+          { label: '전기안전지수', source: 'DX API-006 safetyIndex', period: '5분', status: 'waiting', note: '0~100' },
+          { label: '등급', source: 'DX API-006 riskLevel', period: '5분', status: 'waiting', note: '5단계 danger/warning/caution/watch/normal (연계 v1.1)' },
+          { label: '항목별 위험점수', source: 'DX API-006 risks', period: '5분', status: 'waiting', note: '전류·전압·누설·고조파·온도·역률·아크, 0~100 정수' },
+          { label: '아크 지수', source: '아이티공간 아크 지수(문서 6.4)', status: 'waiting', note: '시범 산출 중 · 판정 보류' },
         ],
       },
       /* ⚠️ 화면에서 뺀 항목(2026-08-26 사용자 확정 — "데이터가 없으면 사용할 수 없는 데이터"):

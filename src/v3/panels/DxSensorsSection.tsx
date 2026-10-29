@@ -1,31 +1,26 @@
 import { useState } from 'react';
-import { InfoHint } from './InfoHint';
 import { TrendChart } from './TrendChart';
 import {
   firstNum,
   hhmm,
   invName,
   isDxTarget,
-  isSafetyLate,
   isStale,
   isThinWindow,
   metric,
-  RISK_LEVEL_LABEL,
-  RISK_ORDER,
   sensorsOf,
   stopLabel,
   useDxFeatureHistory,
   useDxLatest,
-  useDxSafety,
   type DxLatest,
 } from '../data/umeiDx';
 import { Section } from './Drawer';
 
-/* 예지보전 — DX 스마트센서(아이티공간 연계 v1.1). 센서는 인버터마다 하나라 이름은 '인버터 #1'.
-   · 설비 상태 = 전기안전지수(API-006, 5분, 등급 5단계) · Health Index(API-003, 직전 1시간, 등급 없이 숫자만) 두 줄,
-     인버터 중 가장 나쁜 값(문서 6.1 · 6.2, 2026-10-29 사용자 확정).
-     RTU 전원 · 통신은 예지보전이 아니라 발전소 상세에 있다(2026-10-20 사용자 확정)
-   · 인버터별 현황 — 줄 = 현재 유효전력, 누르면 측정값 + 5분 추이(API-005, 최근 24시간)
+/* 예지보전 — DX 센서가 잰 값(아이티공간 연계 v1.1 API-003 · 005). 울산 플랫폼 예지보전과 같은 기준(2026-10-29 사용자):
+   · 설비 상태 = Health Index(직전 1시간, 등급 없이 숫자만) · 발전량 예측(제공 전)
+   · 인버터별 현황 — 줄 = 현재 유효전력, 누르면 측정값(Health · 전류 · 전압 · 역률 · 주파수 · 누설전류 · 고조파 · 온도) + 5분 추이
+   · 전기안전지수 · 등급 · 항목별 위험점수(0~100 점수)는 안전에 있다 — 여기 넣지 않는다
+   · 센서는 인버터마다 하나라 이름은 '인버터 #1', 번호 순
    · 수신이 5분 넘게 멈추면 '수집 중단' — 마지막 값을 현재처럼 보이지 않는다(문서 8-4) */
 
 const NONE = '미산출';
@@ -97,7 +92,6 @@ function InverterTrend({ mac }: { mac: string }) {
 export function DxSensorsSection({ plantCode }: { plantCode?: number }) {
   const sensors = plantCode == null ? [] : sensorsOf(plantCode);
   const latest = useDxLatest(sensors.length ? plantCode : undefined);
-  const safety = useDxSafety(sensors.length ? plantCode : undefined);
   const [open, setOpen] = useState<string | null>(null);
   if (!sensors.length) return null;
 
@@ -105,75 +99,32 @@ export function DxSensorsSection({ plantCode }: { plantCode?: number }) {
   // 설비 상태 = 인버터 중 가장 낮은 Health Index(문서 6.1)
   const low = rows
     .filter((r) => !isStale(r.d) && r.d?.health?.healthIndex != null)
-    .map((r) => ({ name: invName(r.s), v: r.d!.health!.healthIndex as number, w: r.d!.health! }))
+    .map((r) => ({ v: r.d!.health!.healthIndex as number, w: r.d!.health! }))
     .sort((a, b) => a.v - b.v)[0];
-  // 전기안전지수 = 갱신 중인 인버터 중 등급이 가장 나쁜 것, 같으면 지수가 낮은 것
-  const worst = safety.items
-    .filter((x) => !isSafetyLate(x))
-    .sort((a, b) => RISK_ORDER.indexOf(a.riskLevel) - RISK_ORDER.indexOf(b.riskLevel) || (a.safetyIndex ?? 101) - (b.safetyIndex ?? 101))[0];
-  const worstInv = worst && sensors.find((x) => x.mac === worst.macAddress);
-  // 결과가 있는데 모두 15분 넘게 멈췄으면 '미산출'이 아니라 '갱신 지연'(문서 6.2)
-  const allLate = !worst && safety.items.length > 0;
 
   return (
     <>
+      {/* 설비 상태 — 센서가 잰 값 쪽(API-003). 전기안전지수 · 등급은 0~100 점수라 안전에 있다(울산 플랫폼 기준) */}
       <Section title="설비 상태">
-        <div className="flex items-baseline justify-between border-b border-white/5 py-2">
-          <span className="text-[13px] font-semibold text-slate-200">
-            전기안전지수{' '}
-            <InfoHint
-              text="0~100, 높을수록 양호합니다. 5분마다 갱신되며, 인버터가 여러 대면 등급이 가장 나쁜 값입니다. 항목별 위험점수 중 가장 높은 항목이 지수를 낮춘 항목입니다. 당사 운영 기준의 상태 지표이며 법정 · 표준 판정이 아닙니다."
-              label="전기안전지수"
-              align="left"
-            />
-          </span>
-          <span className="flex items-baseline gap-2 text-right">
-            <span className={`text-[18px] font-extrabold ${worst ? 'text-slate-100' : 'text-slate-500'}`}>{fx(worst?.safetyIndex) ?? NONE}</span>
-            {(worst || allLate) && (
-              <span
-                className={`rounded px-1.5 py-0.5 text-[12px] font-bold ${
-                  !worst
-                    ? 'bg-white/10 text-slate-400'
-                    : worst.riskLevel === 'normal'
-                      ? 'bg-emerald-500/15 text-emerald-300'
-                      : worst.riskLevel === 'danger' || worst.riskLevel === 'warning'
-                        ? 'bg-red-500/15 text-red-300'
-                        : 'bg-white/10 text-slate-300'
-                }`}
-              >
-                {worst ? RISK_LEVEL_LABEL[worst.riskLevel] : '갱신 지연'}
-              </span>
-            )}
-            {worst && (
-              <span className="text-[11px] text-slate-500">
-                {sensors.length > 1 && worstInv ? `${invName(worstInv)} · ` : ''}
-                {hhmm(worst.diagnosedAt)}
-              </span>
-            )}
-          </span>
+        <div className="border-b border-white/5 py-2">
+          <div className="flex items-baseline justify-between">
+            <span className="text-[13px] font-semibold text-slate-200">Health Index</span>
+            <span className={`text-[18px] font-extrabold ${low ? 'text-slate-100' : 'text-slate-500'}`}>
+              {fx(low?.v) ?? NONE}
+              {low && <span className="ml-1 text-[12px] font-bold text-slate-500">/ 100</span>}
+            </span>
+          </div>
+          <p className="mt-1 text-[12px] text-slate-500">설비 상태 점수 0~100, 높을수록 양호</p>
+          <p className="text-[12px] text-slate-500">1시간 갱신{low ? ` · ${hhmm(low.w.windowStartedAt)}~${hhmm(low.w.windowEndedAt)}` : ''}</p>
         </div>
+        {/* 발전량 예측 — 아이티공간이 외부 제공 방식을 정하면 연계(문서 6.3) */}
         <div className="flex items-baseline justify-between py-2">
-          <span className="text-[13px] font-semibold text-slate-200">
-            Health Index{' '}
-            <InfoHint
-              text="설비 상태 점수 0~100, 높을수록 양호합니다. 직전 1시간 값이며, 인버터가 여러 대면 가장 낮은 값입니다. 경보 · 등급 판단은 전기안전지수로 합니다."
-              label="Health Index"
-              align="left"
-            />
-          </span>
-          <span className="text-right">
-            <span className={`text-[18px] font-extrabold ${low ? 'text-slate-100' : 'text-slate-500'}`}>{fx(low?.v) ?? NONE}</span>
-            {low && (
-              <span className="ml-2 text-[11px] text-slate-500">
-                {sensors.length > 1 ? `${low.name} · ` : ''}
-                {hhmm(low.w.windowStartedAt)}~{hhmm(low.w.windowEndedAt)}
-              </span>
-            )}
-          </span>
+          <span className="text-[13px] font-semibold text-slate-200">발전량 예측</span>
+          <span className="text-[13px] font-extrabold text-slate-500">제공 전</span>
         </div>
       </Section>
 
-      <Section title={`인버터별 현황 (${sensors.length})`}>
+      <Section title="인버터별 현황">
         <div className="space-y-1.5">
           {rows.map(({ s, d }) => {
             const stale = isStale(d);
