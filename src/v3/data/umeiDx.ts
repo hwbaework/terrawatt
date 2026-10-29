@@ -10,26 +10,30 @@ import { useEffect, useState } from 'react';
 
 const BASE = '/umei-api/api/v1/external/dx';
 
-/** 대상 DX 센서 — 문서 3장 9대 + 한길 · 건호이엔씨(들어온다고 가정) */
+/** 대상 DX 센서 — 문서 3장 9대 + 한길 · 건호이엔씨(들어온다고 가정).
+ *  센서는 인버터마다 하나 — 화면 이름은 장비명(한일튜브1) 대신 인버터 번호(inv)로, 발전소 화면과 같은 '인버터 #1' */
 export interface DxSensor {
   plantCode: number;
   deviceName: string;
   mac: string;
+  inv: number;
 }
 export const DX_SENSORS: DxSensor[] = [
-  { plantCode: 17514, deviceName: '한일튜브1', mac: 'F4:69:D5:38:12:D1' },
-  { plantCode: 17514, deviceName: '한일튜브2', mac: 'F4:69:D5:38:12:DF' },
-  { plantCode: 17514, deviceName: '한일튜브3', mac: 'F4:69:D5:38:12:D3' },
-  { plantCode: 17514, deviceName: '한일튜브4', mac: 'F4:69:D5:38:12:CF' },
-  { plantCode: 17511, deviceName: '용인금속01', mac: 'F4:69:D5:38:12:CA' },
-  { plantCode: 17511, deviceName: '용인금속02', mac: 'F4:69:D5:38:12:CE' },
-  { plantCode: 17558, deviceName: '용인금속03', mac: 'F4:69:D5:38:12:C3' },
-  { plantCode: 17558, deviceName: '용인금속04', mac: 'F4:69:D5:38:12:C8' },
-  { plantCode: 17512, deviceName: '태성산업', mac: 'F4:69:D5:38:12:D4' },
+  { plantCode: 17514, deviceName: '한일튜브1', mac: 'F4:69:D5:38:12:D1', inv: 1 },
+  { plantCode: 17514, deviceName: '한일튜브2', mac: 'F4:69:D5:38:12:DF', inv: 2 },
+  { plantCode: 17514, deviceName: '한일튜브3', mac: 'F4:69:D5:38:12:D3', inv: 3 },
+  { plantCode: 17514, deviceName: '한일튜브4', mac: 'F4:69:D5:38:12:CF', inv: 4 },
+  { plantCode: 17511, deviceName: '용인금속01', mac: 'F4:69:D5:38:12:CA', inv: 1 },
+  { plantCode: 17511, deviceName: '용인금속02', mac: 'F4:69:D5:38:12:CE', inv: 2 },
+  { plantCode: 17558, deviceName: '용인금속03', mac: 'F4:69:D5:38:12:C3', inv: 3 },
+  { plantCode: 17558, deviceName: '용인금속04', mac: 'F4:69:D5:38:12:C8', inv: 4 },
+  { plantCode: 17512, deviceName: '태성산업', mac: 'F4:69:D5:38:12:D4', inv: 1 },
   // 한길(17515) · 건호이엔씨(17513) — 연계 문서 v1.1 센서 목록에 아직 없음. 들어온다고 가정한 자리(MAC 은 받으면 교체)
-  { plantCode: 17515, deviceName: '한길', mac: 'PENDING:17515:01' },
-  { plantCode: 17513, deviceName: '건호이엔씨', mac: 'PENDING:17513:01' },
+  { plantCode: 17515, deviceName: '한길', mac: 'PENDING:17515:01', inv: 1 },
+  { plantCode: 17513, deviceName: '건호이엔씨', mac: 'PENDING:17513:01', inv: 1 },
 ];
+/** 화면 이름 — INV-001 이 '인버터 #1' 인 것과 같은 표기(demoReadings invLabel) */
+export const invName = (s: DxSensor) => `인버터 #${s.inv}`;
 /** 사업장 하나에 발전소 코드가 둘인 곳(용인금속 17511·17558)은 둘 다 조회해 합친다 */
 export const PLANT_GROUP: Record<number, number[]> = { 17511: [17511, 17558], 17558: [17511, 17558] };
 export const sensorsOf = (plantCode: number) => {
@@ -195,8 +199,9 @@ export const useDxSafety = (plantCode: number | undefined) =>
 function kstStamp(ms: number) {
   return new Date(ms + 9 * 3600_000).toISOString().replace(/[-:T]/g, '').slice(0, 14);
 }
-export function useDxSafetyHistory(mac: string | null, hours = 24): DxState<DxSafety> {
-  const [state, setState] = useState<DxState<DxSafety>>({ status: 'loading', items: [] });
+/** 이력 조회 — 장비 1대, 지금부터 hours 시간 전 ~ 지금 */
+function useHistory<T>(path: string, mac: string | null, hours: number, filter?: (x: T) => boolean): DxState<T> {
+  const [state, setState] = useState<DxState<T>>({ status: 'loading', items: [] });
   useEffect(() => {
     if (!mac) return;
     let alive = true;
@@ -209,12 +214,11 @@ export function useDxSafetyHistory(mac: string | null, hours = 24): DxState<DxSa
         limit: '5000',
       });
       try {
-        const res = await fetch(`${BASE}/safety/history?${q}`);
-        const body = (await res.json().catch(() => null)) as Envelope<DxSafety> | null;
+        const res = await fetch(`${BASE}/${path}?${q}`);
+        const body = (await res.json().catch(() => null)) as Envelope<T> | null;
         if (!body?.success) throw new Error(body?.message ?? `HTTP ${res.status}`);
-        // 같은 구간에 여러 모델 행이 오므로 종합 모델만(문서 5.5)
-        const items = (body.data?.items ?? []).filter((x) => x.modelName === SAFETY_MODEL);
-        if (alive) setState({ status: 'ok', items });
+        const items = body.data?.items ?? [];
+        if (alive) setState({ status: 'ok', items: filter ? items.filter(filter) : items });
       } catch (e) {
         if (alive) setState({ status: 'error', items: [], message: (e as Error).message });
       }
@@ -226,15 +230,24 @@ export function useDxSafetyHistory(mac: string | null, hours = 24): DxState<DxSa
       alive = false;
       window.clearInterval(t);
     };
-  }, [mac, hours]);
+  }, [path, mac, hours]); // eslint-disable-line react-hooks/exhaustive-deps
   return state;
 }
+/** API-007 — 같은 구간에 여러 모델 행이 오므로 종합 모델만(문서 5.5) */
+export const useDxSafetyHistory = (mac: string | null, hours = 24) =>
+  useHistory<DxSafety>('safety/history', mac, hours, (x) => x.modelName === SAFETY_MODEL);
 
-/** DX 센서가 있는 사업장 — 대시보드 발전소 선택 */
-export const DX_PLANTS: { code: number; name: string }[] = [
-  { code: 17514, name: '한일튜브' },
-  { code: 17511, name: '용인금속' },
-  { code: 17512, name: '태성산업' },
-  { code: 17515, name: '한길' },
-  { code: 17513, name: '건호이엔씨' },
-];
+/* ── API-005 예지보전 5분 특징값 이력 — 센서별 측정값 추이 ── */
+export interface DxFeature {
+  macAddress: string;
+  /** 5분 구간 시작 */
+  observedAt: string;
+  windowEndedAt: string;
+  /** 구간에 들어간 1초 측정 건수 — 정상이면 약 300 */
+  sampleCount: number;
+  measurements: DxMeasurement[];
+}
+/** 수집이 끊긴 구간 — sampleCount 가 300보다 크게 작으면 추세에서 뺀다(문서 5.3). 80% 미만을 끊긴 것으로 본다 */
+export const isThinWindow = (f: DxFeature) => f.sampleCount < 240;
+export const useDxFeatureHistory = (mac: string | null, hours = 24) =>
+  useHistory<DxFeature>('predictive/features/history', mac, hours);

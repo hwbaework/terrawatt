@@ -6,6 +6,7 @@ import {
   RISK_ORDER,
   firstNum,
   hhmm,
+  invName,
   isSafetyLate,
   isDxTarget,
   isStale,
@@ -15,15 +16,18 @@ import {
   topRisk,
   useDxLatest,
   useDxSafety,
+  useDxSafetyHistory,
   type DxLatest,
   type DxSafety,
   type RiskLevel,
 } from '../data/umeiDx';
 import { Section } from './Drawer';
+import { TrendChart } from './TrendChart';
 
 /* 안전·화재 — DX 스마트센서 값(아이티공간 연계 문서 v1.1).
    · 화재징후 판정 = API-006 전기안전지수(5분) · 과열·전기 징후 = API-003 최신 측정(1분)
-   · 센서가 여러 대면 위에는 **가장 나쁜 값**, 아래 센서별 표에서 각각(문서 7장)
+   · 센서가 여러 대면 위에는 **가장 나쁜 값**, 아래 인버터별(센서는 인버터마다 하나)로 각각(문서 7장).
+     인버터를 누르면 그 인버터의 항목별 위험점수 · 아크 · Health Index · 과열·전기 값 · 전기안전지수 추이
    · 값이 없으면 0이 아니라 '미산출'. 갱신이 멈추면 회색 + '갱신 지연'(문서 6.2)
    · 색은 셋뿐(2026-08-31 사용자 규칙 — 노란색 금지): 초록 정상 / 빨강 위험·경고 / 회색 그 사이·미산출 */
 
@@ -67,6 +71,51 @@ function maxOf(xs: DxLatest[], code: string) {
   return vals.length ? Math.max(...vals) : null;
 }
 
+/** 항목별 위험점수 0~100 — 가장 높은 항목이 지수를 낮춘 항목이라 강조(문서 6.2), 아크는 제공 전까지 미산출 */
+function RiskBars({ sf }: { sf: DxSafety | undefined }) {
+  const top = topRisk(sf);
+  return (
+    <div className="space-y-1.5">
+      {RISK_ITEMS.map((it) => {
+        const v = sf?.risks[it.key];
+        const isTop = top && top.label === it.label;
+        return (
+          <div key={it.key} className="flex items-center gap-2 text-[12px]">
+            <span className={`w-10 shrink-0 ${isTop ? 'font-bold text-slate-100' : 'text-slate-400'}`}>{it.label}</span>
+            <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-white/[0.06]">
+              {typeof v === 'number' && (
+                <div
+                  className={`h-full rounded-full ${isTop ? 'bg-slate-200' : 'bg-slate-500'}`}
+                  style={{ width: `${Math.min(100, Math.max(0, v))}%` }}
+                />
+              )}
+            </div>
+            <span className={`w-12 shrink-0 text-right ${typeof v === 'number' ? 'text-slate-200' : 'text-slate-500'}`}>
+              {typeof v === 'number' ? fx(v) : NONE}
+            </span>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+/** 인버터 하나 — 전기안전지수 5분 추이(API-007, 최근 24시간). 등급이 바뀐 시각은 점 */
+function SafetyTrend({ mac }: { mac: string }) {
+  const hist = useDxSafetyHistory(mac, 24);
+  const pts = hist.items.filter((x) => x.safetyIndex != null).map((x) => ({ at: x.windowStartedAt, v: x.safetyIndex as number, l: x.riskLevel }));
+  const marks = pts
+    .filter((p, i) => i > 0 && p.l !== pts[i - 1]!.l)
+    .map((p) => ({ ...p, color: p.l === 'normal' ? '#34d399' : p.l === 'danger' || p.l === 'warning' ? '#f87171' : '#94a3b8' }));
+  return pts.length ? (
+    <TrendChart pts={pts} max={100} min={Math.max(0, Math.floor(Math.min(...pts.map((p) => p.v)) / 10) * 10 - 10)} marks={marks} unit="전기안전지수 · 5분" label="전기안전지수 24시간 추이" />
+  ) : (
+    <div className="flex h-[110px] items-center justify-center rounded-lg border border-dashed border-white/10 text-[12px] text-slate-500">
+      {hist.status === 'loading' ? '불러오는 중' : NONE}
+    </div>
+  );
+}
+
 export function SafetyScreen({ plantCode }: { plantCode: number | undefined }) {
   const sensors = plantCode == null ? [] : sensorsOf(plantCode);
   const latest = useDxLatest(sensors.length ? plantCode : undefined);
@@ -96,29 +145,7 @@ export function SafetyScreen({ plantCode }: { plantCode: number | undefined }) {
           </span>
         </div>
 
-        {/* 항목별 위험점수 0~100 — 가장 높은 항목 강조, 아크는 제공 전까지 미산출 */}
-        <div className="space-y-1.5">
-          {RISK_ITEMS.map((it) => {
-            const v = worst?.risks[it.key];
-            const isTop = top && top.label === it.label;
-            return (
-              <div key={it.key} className="flex items-center gap-2 text-[12px]">
-                <span className={`w-10 shrink-0 ${isTop ? 'font-bold text-slate-100' : 'text-slate-400'}`}>{it.label}</span>
-                <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-white/[0.06]">
-                  {typeof v === 'number' && (
-                    <div
-                      className={`h-full rounded-full ${isTop ? 'bg-slate-200' : 'bg-slate-500'}`}
-                      style={{ width: `${Math.min(100, Math.max(0, v))}%` }}
-                    />
-                  )}
-                </div>
-                <span className={`w-12 shrink-0 text-right ${typeof v === 'number' ? 'text-slate-200' : 'text-slate-500'}`}>
-                  {typeof v === 'number' ? fx(v) : NONE}
-                </span>
-              </div>
-            );
-          })}
-        </div>
+        <RiskBars sf={worst} />
 
         <div className="mt-3">
           <Row label="판정 근거" value={top ? `${top.label} ${fx(top.score)}` : null} sub={top ? '가장 높은 위험 항목' : undefined} />
@@ -135,8 +162,8 @@ export function SafetyScreen({ plantCode }: { plantCode: number | undefined }) {
         <Row label="측정 시각" value={lastObserved ? hhmm(lastObserved) : null} sub={sensors.length > 1 ? '센서 중 가장 큰 값' : undefined} />
       </Section>
 
-      {/* 센서별 — 등급이 나쁜 순. 누르면 그 센서의 과열·전기 값 */}
-      <Section title={`센서별 (${sensors.length})`}>
+      {/* 인버터별 — 등급이 나쁜 순. 누르면 그 인버터의 상세 · 추이 */}
+      <Section title={`인버터별 (${sensors.length})`}>
         <div className="space-y-1.5">
           {[...sensors]
             .map((s) => ({
@@ -161,7 +188,7 @@ export function SafetyScreen({ plantCode }: { plantCode: number | undefined }) {
                     onClick={() => setOpen(isOpen ? null : s.mac)}
                     className="flex w-full items-center justify-between gap-2 px-3 py-2.5 text-left hover:bg-white/[0.04]"
                   >
-                    <span className="text-[13px] font-bold text-slate-200">{s.deviceName}</span>
+                    <span className="text-[13px] font-bold text-slate-200">{invName(s)}</span>
                     <span className="flex items-center gap-2 text-[12px]">
                       {stale && isDxTarget(s.mac) && latest.status === 'ok' && (
                         <span className="rounded border border-white/15 px-1.5 py-0.5 font-bold text-slate-400">수집 중단</span>
@@ -176,16 +203,32 @@ export function SafetyScreen({ plantCode }: { plantCode: number | undefined }) {
                     </span>
                   </button>
                   {isOpen && (
-                    <div className="border-t border-white/10 px-3 py-1.5">
-                      {stale ? (
-                        <p className="py-1.5 text-[12px] text-slate-500">{stopLabel(s.mac, latest.status === 'ok')}</p>
-                      ) : (
-                        <>
-                          <Row label="설비 온도" value={fx(firstNum(metric(lt, 'temperature')))} unit="℃" />
-                          <Row label="누설전류" value={fx(firstNum(metric(lt, 'ground_current')), 3)} unit="A" />
-                          <Row label="고조파 THD" value={fx(firstNum(metric(lt, 'thdi')))} unit="%" />
-                          <Row label="전류 불평형" value={fx(firstNum(metric(lt, 'current_unbalance')))} unit="%" />
-                        </>
+                    <div className="border-t border-white/10 px-3 py-2.5">
+                      {sf ? <RiskBars sf={sf} /> : <p className="text-[12px] text-slate-500">{NONE}</p>}
+                      <div className="mt-2">
+                        <Row label="아크 지수" value={null} sub="판정 보류" />
+                        <Row
+                          label="Health Index"
+                          value={stale ? null : fx(lt?.health?.healthIndex)}
+                          unit="점"
+                          sub={!stale && lt?.health?.windowStartedAt ? `${hhmm(lt.health.windowStartedAt)}~${hhmm(lt.health.windowEndedAt)}` : undefined}
+                        />
+                        {stale ? (
+                          <Row label="과열·전기 징후" value={null} sub={stopLabel(s.mac, latest.status === 'ok')} />
+                        ) : (
+                          <>
+                            <Row label="설비 온도" value={fx(firstNum(metric(lt, 'temperature')))} unit="℃" />
+                            <Row label="누설전류" value={fx(firstNum(metric(lt, 'ground_current')), 3)} unit="A" />
+                            <Row label="고조파 THD" value={fx(firstNum(metric(lt, 'thdi')))} unit="%" />
+                            <Row label="전류 불평형" value={fx(firstNum(metric(lt, 'current_unbalance')))} unit="%" />
+                          </>
+                        )}
+                        <Row label="산출 시각" value={sf ? hhmm(sf.diagnosedAt) : null} />
+                      </div>
+                      {isDxTarget(s.mac) && (
+                        <div className="mt-2">
+                          <SafetyTrend mac={s.mac} />
+                        </div>
                       )}
                     </div>
                   )}

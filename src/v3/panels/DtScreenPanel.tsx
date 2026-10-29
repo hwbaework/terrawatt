@@ -1,9 +1,6 @@
 import { DT_SCREENS, type DtItem } from '../data/dtScreens';
 import type { PlantEventKind } from '../data/plantEvents';
-import { useState } from 'react';
-import { createPortal } from 'react-dom';
-import { ActionButton, Drawer, Section } from './Drawer';
-import { DxDashboard } from './DxDashboard';
+import { Drawer, Section } from './Drawer';
 import { PlantScreen } from './PlantScreen';
 import { PredictiveScreen } from './PredictiveScreen';
 import { SafetyScreen } from './SafetyScreen';
@@ -67,8 +64,6 @@ export function DtScreenPanel({
   onRunQuake: () => void;
 }) {
   const screen = DT_SCREENS.find((s) => s.id === screenId);
-  // 예지보전·안전 통합 대시보드(아이티공간 연계 v1.1 7장) — 두 화면에서 연다
-  const [dash, setDash] = useState(false);
   if (!screen) return null;
 
   return (
@@ -77,18 +72,12 @@ export function DtScreenPanel({
       {screen.id === 'plant' ? (
         <PlantScreen onRunGen={onRunGen} onEvent={onEvent} activeEvent={activeEvent} />
       ) : screen.id === 'predictive' ? (
-        <>
-          <PredictiveScreen plantCode={HOME_PLANT_CODE} />
-          <ActionButton label="예지보전·안전 대시보드" onClick={() => setDash(true)} />
-        </>
+        <PredictiveScreen plantCode={HOME_PLANT_CODE} />
       ) : (
         <>
           {/* 안전·화재는 DX 실값(아이티공간 연계 v1.1) — 그 밖은 항목 뼈대 */}
           {screen.id === 'safety' ? (
-            <>
-              <SafetyScreen plantCode={HOME_PLANT_CODE} />
-              <ActionButton label="예지보전·안전 대시보드" onClick={() => setDash(true)} />
-            </>
+            <SafetyScreen plantCode={HOME_PLANT_CODE} />
           ) : (
             screen.groups.map((g) => (
               <Section key={g.title} title={g.title}>
@@ -146,8 +135,6 @@ export function DtScreenPanel({
           )}
         </>
       )}
-      {/* 서랍(aside)의 blur·애니메이션이 fixed 를 가두므로 body 로 띄운다 */}
-      {dash && createPortal(<DxDashboard initialPlant={HOME_PLANT_CODE} onClose={() => setDash(false)} />, document.body)}
     </Drawer>
   );
 }
