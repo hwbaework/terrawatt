@@ -46,12 +46,11 @@ function Line({ label, value, unit }: { label: string; value: string | null; uni
   );
 }
 
-/** 추이로 고를 수 있는 값 — API-005 5분 특징값(문서 5.3). 전류는 R/S/T 중 가장 큰 상 */
+/** 추이로 고를 수 있는 값 — API-005 5분 특징값(문서 5.3). 전류는 R/S/T 중 가장 큰 상.
+ *  온도 · 고조파 THD 는 실제 응답이 미산출이라 뺐다(2026-10-29 사용자 확정) */
 const TRENDS: { code: string; label: string; unit: string; pick: (v: number | number[] | null) => number | null }[] = [
   { code: 'current_rst', label: '전류', unit: 'A · R/S/T 최대', pick: (v) => (Array.isArray(v) ? (v.length ? Math.max(...v) : null) : v) },
   { code: 'voltage_mean', label: '전압', unit: 'V · 평균', pick: firstNum },
-  { code: 'temperature', label: '온도', unit: '℃ · 평균', pick: firstNum },
-  { code: 'thdi', label: '고조파', unit: '% · THD 평균', pick: firstNum },
   { code: 'ground_current', label: '누설전류', unit: 'A · 평균', pick: firstNum },
   { code: 'power_factor', label: '역률', unit: '% · 평균', pick: firstNum },
 ];

@@ -214,7 +214,7 @@ export const DT_SCREENS: DtScreen[] = [
 
   /* ── ② 안전예방·화재 ──
         ★ 2026-08-26 재정리: ITS_울산_에자자_수집데이터_API_명세서_v1.2 로 **실제 받을 수 있는 값**과
-          아닌 것을 갈랐다. 과열·전기 징후 = DX 전기설비(API-003/005), 판정 = DX 안전지수(API-006/007).
+          아닌 것을 갈랐다. 전기 징후 = DX 전기설비(API-003/005), 판정 = DX 안전지수(API-006/007).
           열화상 카메라·연기 감지는 명세에 없다 — 별도 센서 도입 전엔 못 받는 값이라 그렇게 표기. ── */
   {
     id: 'safety',
@@ -224,11 +224,9 @@ export const DT_SCREENS: DtScreen[] = [
     summary: '과열·연기·누수를 미리 잡는다',
     groups: [
       {
-        title: '과열·전기 징후 (DX 전기설비)',
+        title: '전기 징후 (DX 전기설비)',
         items: [
-          { label: '설비 온도', unit: '℃', source: 'DX 스마트센서 API-003 temperature', period: '10초', status: 'waiting' },
           { label: '누설전류', unit: 'A', source: 'DX 스마트센서 API-003 ground_current', period: '10초', status: 'waiting', note: '누전 = 전기화재 전조' },
-          { label: '고조파 THD', unit: '%', source: 'DX 스마트센서 API-003 thdi', period: '10초', status: 'waiting', note: '아크·열화 징후' },
           { label: '전류 불평형', unit: '%', source: 'DX 스마트센서 API-003 current_unbalance', period: '10초', status: 'waiting' },
         ],
       },

@@ -1,5 +1,4 @@
 import { useId, useState } from 'react';
-import { MIcon } from '../../v2/lib/MIcon';
 
 /* (i) 도움말 — 지표 설명은 값 아래에 늘어놓지 않고 아이콘에 올리면(또는 포커스하면) 보인다.
    연계 문서 v1.1 7장 '도움말'(법정 판정 · 아크 확률이 아니라는 점)도 여기에 둔다.
@@ -28,7 +27,12 @@ export function InfoHint({ text, label, align = 'center' }: { text: string; labe
         onKeyDown={(e) => e.key === 'Escape' && setOpen(false)}
         className="inline-flex cursor-help text-slate-500 hover:text-slate-200"
       >
-        <MIcon name="info" size={15} />
+        {/* (i) — 아이콘 폰트 서브셋(index.css)에 info 가 없어 글자 'info'로 나오던 것을 그림으로 */}
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
+          <circle cx="12" cy="12" r="9" />
+          <line x1="12" y1="11" x2="12" y2="16.5" strokeLinecap="round" />
+          <circle cx="12" cy="7.8" r="0.6" fill="currentColor" />
+        </svg>
       </button>
       <span
         id={id}

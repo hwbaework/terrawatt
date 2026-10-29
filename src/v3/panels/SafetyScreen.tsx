@@ -17,7 +17,6 @@ import {
   useDxLatest,
   useDxSafety,
   useDxSafetyHistory,
-  type DxLatest,
   type DxSafety,
   type RiskLevel,
 } from '../data/umeiDx';
@@ -25,9 +24,10 @@ import { Section } from './Drawer';
 import { TrendChart } from './TrendChart';
 
 /* 안전·화재 — DX 스마트센서 값(아이티공간 연계 문서 v1.1).
-   · 화재징후 판정 = API-006 전기안전지수(5분) · 과열·전기 징후 = API-003 최신 측정(1분)
+   · 화재징후 판정 = API-006 전기안전지수(5분) · 전기 징후 = API-003 최신 측정(1분)
+   · 온도 · 고조파 THD 는 문서에는 있으나 실제 응답이 미산출이라 뺐다(2026-10-29 사용자 확정) — 이름은 예지보전과 같게
    · 센서가 여러 대면 위에는 **가장 나쁜 값**, 아래 인버터별(센서는 인버터마다 하나)로 각각(문서 7장).
-     인버터를 누르면 그 인버터의 항목별 위험점수 · 아크 · Health Index · 과열·전기 값 · 전기안전지수 추이
+     인버터를 누르면 그 인버터의 항목별 위험점수 · 아크 · Health Index · 전기안전지수 추이 (전기 징후는 위 표에 인버터마다)
    · 값이 없으면 0이 아니라 '미산출'. 갱신이 멈추면 회색 + '갱신 지연'(문서 6.2)
    · 색은 셋뿐(2026-08-31 사용자 규칙 — 노란색 금지): 초록 정상 / 빨강 위험·경고 / 회색 그 사이·미산출 */
 
@@ -65,12 +65,6 @@ function worstSafety(xs: DxSafety[]) {
       (a.safetyIndex ?? 101) - (b.safetyIndex ?? 101),
   )[0];
 }
-/** 센서들 중 가장 큰 값(나쁜 쪽) — 수집 중단 센서는 뺀다 */
-function maxOf(xs: DxLatest[], code: string) {
-  const vals = xs.filter((x) => !isStale(x)).map((x) => firstNum(metric(x, code))).filter((v): v is number => v != null);
-  return vals.length ? Math.max(...vals) : null;
-}
-
 /** 항목별 위험점수 0~100 — 가장 높은 항목이 지수를 낮춘 항목이라 강조(문서 6.2), 아크는 제공 전까지 미산출 */
 function RiskBars({ sf }: { sf: DxSafety | undefined }) {
   const top = topRisk(sf);
@@ -125,15 +119,13 @@ export function SafetyScreen({ plantCode }: { plantCode: number | undefined }) {
   const worst = worstSafety(safety.items);
   const late = isSafetyLate(worst);
   const top = topRisk(worst);
-  const fresh = latest.items.filter((x) => !isStale(x));
-  const lastObserved = fresh.map((x) => x.observedAt).sort().at(-1);
 
   return (
     <>
       <Section title="화재징후 판정 (DX 안전지수)">
         <div className="mb-2 flex items-center justify-between">
           <span className="text-[13px] font-semibold text-slate-200">
-            전기안전지수 <InfoHint text="0~100, 높을수록 양호합니다. 센서가 여러 대면 가장 낮은 값입니다. 아래 항목 중 가장 높은 위험점수가 지수를 낮춘 항목입니다. 당사 운영 기준의 상태 지표이며 법정 · 표준 판정이 아닙니다. 보호계전기 동작을 대신하지 않습니다." label="전기안전지수" align="left" />
+            전기안전지수 <InfoHint text="0~100, 높을수록 양호합니다. 인버터가 여러 대면 가장 낮은 값입니다. 아래 항목 중 가장 높은 위험점수가 지수를 낮춘 항목입니다. 당사 운영 기준의 상태 지표이며 법정 · 표준 판정이 아닙니다. 보호계전기 동작을 대신하지 않습니다." label="전기안전지수" align="left" />
           </span>
           <span className="flex items-center gap-2">
             <span className={`text-[20px] font-extrabold ${worst && !late ? 'text-slate-100' : 'text-slate-500'}`}>
@@ -154,12 +146,41 @@ export function SafetyScreen({ plantCode }: { plantCode: number | undefined }) {
         </div>
       </Section>
 
-      <Section title="과열·전기 징후 (DX 전기설비)">
-        <Row label="설비 온도" value={fx(maxOf(latest.items, 'temperature'))} unit="℃" />
-        <Row label="누설전류" value={fx(maxOf(latest.items, 'ground_current'), 3)} unit="A" />
-        <Row label="고조파 THD" value={fx(maxOf(latest.items, 'thdi'))} unit="%" />
-        <Row label="전류 불평형" value={fx(maxOf(latest.items, 'current_unbalance'))} unit="%" />
-        <Row label="측정 시각" value={lastObserved ? hhmm(lastObserved) : null} sub={sensors.length > 1 ? '센서 중 가장 큰 값' : undefined} />
+      {/* 전기 징후 — 인버터마다 한 줄(값은 각각). 수신이 멈춘 인버터는 값 대신 수집 중단 */}
+      <Section title="전기 징후 (DX 전기설비)">
+        <table className="w-full text-[12.5px]">
+          <thead>
+            <tr className="border-b border-white/10 text-left text-[11.5px] text-slate-500">
+              <th className="py-1.5 font-semibold">인버터</th>
+              <th className="py-1.5 text-right font-semibold">누설전류 (A)</th>
+              <th className="py-1.5 text-right font-semibold">전류 불평형 (%)</th>
+              <th className="py-1.5 text-right font-semibold">측정 시각</th>
+            </tr>
+          </thead>
+          <tbody>
+            {sensors.map((s) => {
+              const lt = latest.items.find((x) => x.macAddress === s.mac);
+              const stale = isStale(lt);
+              const cell = (v: string | null) => <span className={v ? 'font-bold text-slate-100' : 'text-slate-500'}>{v ?? NONE}</span>;
+              return (
+                <tr key={s.mac} className="border-b border-white/5 last:border-0">
+                  <td className="py-1.5 font-bold text-slate-200">{invName(s)}</td>
+                  {stale ? (
+                    <td colSpan={3} className="py-1.5 text-right text-slate-500">
+                      {stopLabel(s.mac, latest.status === 'ok')}
+                    </td>
+                  ) : (
+                    <>
+                      <td className="py-1.5 text-right">{cell(fx(firstNum(metric(lt, 'ground_current')), 3))}</td>
+                      <td className="py-1.5 text-right">{cell(fx(firstNum(metric(lt, 'current_unbalance'))))}</td>
+                      <td className="py-1.5 text-right text-slate-400">{lt ? hhmm(lt.observedAt) : ''}</td>
+                    </>
+                  )}
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
       </Section>
 
       {/* 인버터별 — 등급이 나쁜 순. 누르면 그 인버터의 상세 · 추이 */}
@@ -213,16 +234,6 @@ export function SafetyScreen({ plantCode }: { plantCode: number | undefined }) {
                           unit="점"
                           sub={!stale && lt?.health?.windowStartedAt ? `${hhmm(lt.health.windowStartedAt)}~${hhmm(lt.health.windowEndedAt)}` : undefined}
                         />
-                        {stale ? (
-                          <Row label="과열·전기 징후" value={null} sub={stopLabel(s.mac, latest.status === 'ok')} />
-                        ) : (
-                          <>
-                            <Row label="설비 온도" value={fx(firstNum(metric(lt, 'temperature')))} unit="℃" />
-                            <Row label="누설전류" value={fx(firstNum(metric(lt, 'ground_current')), 3)} unit="A" />
-                            <Row label="고조파 THD" value={fx(firstNum(metric(lt, 'thdi')))} unit="%" />
-                            <Row label="전류 불평형" value={fx(firstNum(metric(lt, 'current_unbalance')))} unit="%" />
-                          </>
-                        )}
                         <Row label="산출 시각" value={sf ? hhmm(sf.diagnosedAt) : null} />
                       </div>
                       {isDxTarget(s.mac) && (
