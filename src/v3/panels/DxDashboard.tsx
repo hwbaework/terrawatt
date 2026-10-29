@@ -1,5 +1,6 @@
 import { useState, type ReactNode } from 'react';
 import { MIcon } from '../../v2/lib/MIcon';
+import { InfoHint } from './InfoHint';
 import {
   DX_PLANTS,
   RISK_ITEMS,
@@ -46,10 +47,14 @@ const levelBadge = (l: RiskLevel | undefined, late = false) =>
         ? 'border-red-400/50 text-red-300'
         : 'border-white/25 text-slate-200';
 
-function Card({ title, children, className = '' }: { title: ReactNode; children: ReactNode; className?: string }) {
+/** 카드 — 설명(info)은 제목 옆 (i) 에 올리면 보인다 */
+function Card({ title, info, children, className = '' }: { title: string; info?: string; children: ReactNode; className?: string }) {
   return (
     <section className={`min-w-0 rounded-xl border border-white/10 bg-white/[0.03] p-4 ${className}`}>
-      <h3 className="mb-3 text-[14px] font-extrabold text-slate-100">{title}</h3>
+      <h3 className="mb-3 flex items-center gap-1.5 text-[14px] font-extrabold text-slate-100">
+        {title}
+        {info && <InfoHint text={info} label={title} />}
+      </h3>
       {children}
     </section>
   );
@@ -78,6 +83,9 @@ export function DxDashboard({ onClose, initialPlant = 17514 }: { onClose: () => 
 
   // 요약 — 센서 중 가장 나쁜(낮은) 값
   const worst = rows.find((r) => r.sf && !isSafetyLate(r.sf))?.sf;
+  // 센서 결과가 모두 15분 넘게 멈췄으면 '미산출'이 아니라 '갱신 지연'(연계 문서 6.2)
+  const allLate = !worst && rows.some((r) => r.sf) && rows.every((r) => !r.sf || isSafetyLate(r.sf));
+  const many = sensors.length > 1;
   const healths = rows
     .filter((r) => !isStale(r.lt) && r.lt?.health?.healthIndex != null)
     .map((r) => r.lt!.health!)
@@ -110,7 +118,7 @@ export function DxDashboard({ onClose, initialPlant = 17514 }: { onClose: () => 
             <span className="text-[12px] text-slate-500">발전소 코드 {codes}</span>
           </div>
           <div className="flex items-center gap-3">
-            <span className="text-[12px] text-slate-500">모든 시각 KST · 갱신 지연 시 회색</span>
+            <InfoHint text="모든 시각은 한국 표준시(KST)입니다. 갱신이 멈춘 값은 회색으로 표시합니다." label="대시보드" align="right" />
             <button type="button" onClick={onClose} title="닫기" className="rounded-md p-1 text-slate-400 hover:bg-white/10 hover:text-white">
               <MIcon name="close" size={18} />
             </button>
@@ -125,47 +133,50 @@ export function DxDashboard({ onClose, initialPlant = 17514 }: { onClose: () => 
 
         {/* 요약 카드 4개 */}
         <div className="mb-4 grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
-          <Card title="전기안전지수">
+          <Card
+            title="전기안전지수"
+            info={`0~100, 높을수록 양호합니다.${many ? ' 센서 중 가장 낮은 값입니다.' : ''} 5분마다 갱신됩니다. 당사 운영 기준의 상태 지표이며 법정 · 표준 판정이 아닙니다. 보호계전기 동작을 대신하지 않습니다.`}
+          >
             <div className="mb-2 flex items-center gap-2">
-              <span className={`text-[30px] font-extrabold leading-none ${worst ? 'text-white' : 'text-slate-500'}`}>{fx(worst?.safetyIndex) ?? NONE}</span>
-              <span className={`rounded-full border px-2 py-0.5 text-[12px] font-bold ${levelBadge(worst?.riskLevel)}`}>
-                {worst ? RISK_LEVEL_LABEL[worst.riskLevel] : '판정 없음'}
+              <span className={`text-[30px] font-extrabold leading-none ${worst ? 'text-white' : 'text-slate-500'}`}>{fx(worst?.safetyIndex) ?? (allLate ? '-' : NONE)}</span>
+              <span className={`rounded-full border px-2 py-0.5 text-[12px] font-bold ${levelBadge(worst?.riskLevel, allLate)}`}>
+                {worst ? RISK_LEVEL_LABEL[worst.riskLevel] : allLate ? '갱신 지연' : '판정 없음'}
               </span>
             </div>
-            <Note>0~100, 높을수록 양호</Note>
-            {sensors.length > 1 && <Note>센서 중 가장 낮은 값</Note>}
-            <Note>5분 갱신{worst ? ` · 산출 ${hhmm(worst.diagnosedAt)}` : ''}</Note>
+            {worst && <Note>산출 {hhmm(worst.diagnosedAt)}</Note>}
           </Card>
-          <Card title="설비 상태 (Health Index)">
+          <Card
+            title="설비 상태 (Health Index)"
+            info={`설비 상태 점수 0~100, 높을수록 양호합니다.${many ? ' 센서 중 가장 낮은 값입니다.' : ''} 1시간마다 갱신됩니다. 경보 · 등급 판단은 전기안전지수로 합니다.`}
+          >
             <div className="mb-2 flex items-baseline gap-1">
               <span className={`text-[30px] font-extrabold leading-none ${lowHealth ? 'text-white' : 'text-slate-500'}`}>{fx(lowHealth?.healthIndex) ?? NONE}</span>
               {lowHealth && <span className="text-[13px] text-slate-500">/ 100</span>}
             </div>
-            <Note>설비 상태 점수 0~100, 높을수록 양호</Note>
-            {sensors.length > 1 && <Note>센서 중 가장 낮은 값</Note>}
-            <Note>
-              1시간 갱신
-              {lowHealth ? ` · ${hhmm(lowHealth.windowStartedAt)}~${hhmm(lowHealth.windowEndedAt)}` : ''}
-            </Note>
+            {lowHealth && <Note>{`${hhmm(lowHealth.windowStartedAt)}~${hhmm(lowHealth.windowEndedAt)}`}</Note>}
           </Card>
-          <Card title="발전량 예측">
+          <Card
+            title="발전량 예측"
+            info="다음 1시간 P50 예측값입니다. 외부 제공 방식(MQTT / API)이 정해지면 연계합니다. P10~P90 은 확률 구간이 아닌 참고 범위입니다."
+          >
             <div className="mb-2 flex items-center gap-2">
               <span className="text-[30px] font-extrabold leading-none text-slate-500">제공 전</span>
             </div>
-            <Note>다음 1시간 P50 · 외부 제공 방식(MQTT/API) 결정 후 연계</Note>
           </Card>
-          <Card title="아크 지수">
+          <Card
+            title="아크 지수"
+            info="시범 산출 중이라 아직 값이 없고, 0이나 정상으로 표시하지 않습니다. 아크 발생 확률이나 화재 가능성 판정이 아니며, 아크 차단기를 대신하지 않습니다."
+          >
             <div className="mb-2 flex items-center gap-2">
               <span className="text-[30px] font-extrabold leading-none text-slate-500">미산출</span>
               <span className="rounded-full border border-white/15 px-2 py-0.5 text-[12px] font-bold text-slate-400">판정 보류</span>
             </div>
-            <Note>시범 산출 중 · 0이나 정상으로 표시하지 않음</Note>
           </Card>
         </div>
 
         <div className="mb-4 grid grid-cols-1 gap-3 xl:grid-cols-2">
           {/* 설비별 상태 표 */}
-          <Card title={`설비별 상태 (${rows.length})`}>
+          <Card title={`설비별 상태 (${rows.length})`} info="등급이 나쁜 순입니다. 줄을 누르면 아래 상세가 그 센서로 바뀝니다.">
             <div className="overflow-x-auto">
               <table className="w-full min-w-[460px] text-[13px]">
                 <thead>
@@ -211,18 +222,15 @@ export function DxDashboard({ onClose, initialPlant = 17514 }: { onClose: () => 
                 </tbody>
               </table>
             </div>
-            <div className="mt-2">
-              <Note>등급이 나쁜 순 · 줄을 누르면 아래 상세가 바뀜</Note>
-            </div>
           </Card>
 
           {/* 발전량 실측 · 예측 추이 — 예측 외부 제공 전 */}
-          <Card title="발전량 실측 · 예측 추이">
+          <Card
+            title="발전량 실측 · 예측 추이"
+            info="제공되면 실측은 실선, P50 은 점선, P10~P90 참고 범위는 음영으로 지난 24시간과 향후 36시간을 그리고, 최근 7일 오차율을 함께 보여 줍니다."
+          >
             <div className="flex h-[180px] items-center justify-center rounded-lg border border-dashed border-white/10 text-[13px] text-slate-500">
               발전량 예측 제공 전
-            </div>
-            <div className="mt-2">
-              <Note>제공되면: 실측 실선 · P50 점선 · P10~P90 참고 범위 음영 · 지난 24시간 + 향후 36시간 · 최근 7일 오차율</Note>
             </div>
           </Card>
         </div>
@@ -241,7 +249,7 @@ function RiskBars({ row }: { row?: Row }) {
   const sf = row?.sf;
   const top = topRisk(sf);
   return (
-    <Card title={`선택 센서 상세${row ? `: ${row.name}` : ''} · 항목별 위험점수`}>
+    <Card title={`선택 센서 상세${row ? `: ${row.name}` : ''} · 항목별 위험점수`} info="항목별 위험점수 0~100, 높을수록 위험합니다. 가장 높은 항목을 강조합니다. 아크는 제공 전까지 미산출입니다.">
       <div className="space-y-2">
         {RISK_ITEMS.map((it) => {
           const v = sf?.risks[it.key];
@@ -264,7 +272,7 @@ function RiskBars({ row }: { row?: Row }) {
         })}
       </div>
       <div className="mt-3">
-        <Note>0~100, 높을수록 위험 · 가장 높은 항목 강조{sf ? ` · 산출 ${hhmm(sf.diagnosedAt)}` : ''}</Note>
+        {sf && <Note>산출 {hhmm(sf.diagnosedAt)}</Note>}
       </div>
     </Card>
   );
@@ -286,7 +294,7 @@ function SafetyTrend({ row }: { row?: Row }) {
   const changes = pts.filter((p, i) => i > 0 && p.l !== pts[i - 1]!.l);
   const ticks = [100, Math.round((100 + lo) / 2), lo];
   return (
-    <Card title={`선택 센서 추이${row ? `: ${row.name}` : ''}`}>
+    <Card title={`선택 센서 추이${row ? `: ${row.name}` : ''}`} info="전기안전지수(5분) 최근 24시간입니다. 등급이 바뀐 시각은 점으로 표시합니다. Health Index 는 이력 API 가 없어 위 카드의 최신값만 있습니다.">
       {pts.length ? (
         <svg viewBox={`0 0 ${W} ${H}`} className="w-full" role="img" aria-label="전기안전지수 24시간 추이">
           {ticks.map((t) => (
@@ -307,9 +315,6 @@ function SafetyTrend({ row }: { row?: Row }) {
           {hist.status === 'loading' ? '불러오는 중' : NONE}
         </div>
       )}
-      <div className="mt-2">
-        <Note>전기안전지수(5분) · 최근 24시간 · 등급이 바뀐 시각은 점 · Health Index 는 이력 API가 없어 최신값만(위 카드)</Note>
-      </div>
     </Card>
   );
 }

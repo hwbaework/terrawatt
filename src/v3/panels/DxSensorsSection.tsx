@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { InfoHint } from './InfoHint';
 import { firstNum, hhmm, isStale, metric, sensorsOf, useDxLatest, type DxLatest } from '../data/umeiDx';
 import { Section } from './Drawer';
 
@@ -43,7 +44,7 @@ export function DxSensorsSection({ plantCode }: { plantCode?: number }) {
     <Section title={`DX 센서별 상태 (${sensors.length})`}>
       <div className="mb-2.5 flex items-baseline justify-between">
         <span className="text-[13px] font-semibold text-slate-200">
-          건전성 지수 (Health Index) <span className="text-[11px] font-normal text-slate-500">0~100 · 높을수록 양호</span>
+          건전성 지수 (Health Index) <InfoHint text="설비 상태 점수 0~100, 높을수록 양호합니다. 경보 · 등급 판단은 전기안전지수로 합니다." label="건전성 지수" />
         </span>
         <span className="text-right">
           <span className={`text-[18px] font-extrabold ${low ? 'text-slate-100' : 'text-slate-500'}`}>{fx(low?.v) ?? NONE}</span>
