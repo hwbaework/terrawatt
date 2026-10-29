@@ -95,7 +95,6 @@ function groupsForScreen(a: PlannedAsset, screenId: string) {
    위험등급은 안전(전기안전지수) 쪽이라 뺐다 */
 const PM_ITEMS: { label: string; unit?: string }[] = [
   { label: '건전성 지수 (Health Index)' },
-  { label: '발전량 예측', unit: 'kWh' },
 ];
 
 export function AssetDtStub({

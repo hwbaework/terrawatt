@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { demoHistory, demoLatest } from './umeiDxDemo';
 
 /* ── UMEI 외부 연계 API — DX 스마트센서(예지보전 · 전기안전지수) ──
    근거: 아이티공간 「울산에자자_예지보전_데이터_연계_정리_v1.1」(2026-10).
@@ -171,12 +172,15 @@ function usePoll<T>(path: string, plantCode: number | undefined, everyMs: number
     let alive = true;
     const codes = PLANT_GROUP[plantCode] ?? [plantCode];
     const run = async () => {
+      // 응답이 없거나(키 없음 · 오류) 비면 데모 값으로 채운다(POC — 울산 플랫폼 데모와 같은 값)
+      let all: T[] = [];
       try {
-        const all = (await Promise.all(codes.map((c) => getItems<T>(path, c)))).flat();
-        if (alive) setState({ status: 'ok', items: filter ? all.filter(filter) : all });
-      } catch (e) {
-        if (alive) setState({ status: 'error', items: [], message: (e as Error).message });
+        all = (await Promise.all(codes.map((c) => getItems<T>(path, c)))).flat();
+      } catch {
+        all = [];
       }
+      if (!all.length) all = demoLatest(path, plantCode) as T[];
+      if (alive) setState({ status: 'ok', items: filter ? all.filter(filter) : all });
     };
     void run();
     const t = window.setInterval(run, everyMs);
@@ -214,15 +218,17 @@ function useHistory<T>(path: string, mac: string | null, hours: number, filter?:
         endAt: kstStamp(now),
         limit: '5000',
       });
+      // 응답이 없거나 비면 데모 값(POC)
+      let items: T[] = [];
       try {
         const res = await fetch(`${BASE}/${path}?${q}`);
         const body = (await res.json().catch(() => null)) as Envelope<T> | null;
-        if (!body?.success) throw new Error(body?.message ?? `HTTP ${res.status}`);
-        const items = body.data?.items ?? [];
-        if (alive) setState({ status: 'ok', items: filter ? items.filter(filter) : items });
-      } catch (e) {
-        if (alive) setState({ status: 'error', items: [], message: (e as Error).message });
+        if (body?.success) items = body.data?.items ?? [];
+      } catch {
+        items = [];
       }
+      if (!items.length) items = demoHistory(path, mac, hours) as T[];
+      if (alive) setState({ status: 'ok', items: filter ? items.filter(filter) : items });
     };
     setState({ status: 'loading', items: [] });
     void run();

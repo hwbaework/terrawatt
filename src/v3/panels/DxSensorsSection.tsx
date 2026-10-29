@@ -17,13 +17,14 @@ import {
 import { Section } from './Drawer';
 
 /* 예지보전 — DX 센서가 잰 값(아이티공간 연계 v1.1 API-003 · 005). 울산 플랫폼 예지보전과 같은 기준(2026-10-29 사용자):
-   · 설비 상태 = Health Index(직전 1시간, 등급 없이 숫자만) · 발전량 예측(제공 전)
+   · 설비 상태 = Health Index(직전 1시간, 등급 없이 숫자만). 발전량 예측은 뺐다(2026-10-29 사용자 — 발전량 그래프가 앞 화면에 있다)
+   · UMEI 응답이 없으면 데모 값(umeiDxDemo.ts)으로 채운다 — POC 라 값이 있어야 한다
    · 인버터별 현황 — 줄 = 현재 유효전력, 누르면 측정값(Health · 전류 · 전압 · 역률 · 주파수 · 누설전류 · 고조파 · 온도) + 5분 추이
    · 전기안전지수 · 등급 · 항목별 위험점수(0~100 점수)는 안전에 있다 — 여기 넣지 않는다
    · 센서는 인버터마다 하나라 이름은 '인버터 #1', 번호 순
    · 수신이 5분 넘게 멈추면 '수집 중단' — 마지막 값을 현재처럼 보이지 않는다(문서 8-4) */
 
-const NONE = '미산출';
+const NONE = '-';
 const fx = (v: number | null | undefined, d = 1) =>
   v == null ? null : v.toLocaleString('ko-KR', { minimumFractionDigits: d, maximumFractionDigits: d });
 const rst = (v: number | number[] | null, d = 1) =>
@@ -106,7 +107,7 @@ export function DxSensorsSection({ plantCode }: { plantCode?: number }) {
     <>
       {/* 설비 상태 — 센서가 잰 값 쪽(API-003). 전기안전지수 · 등급은 0~100 점수라 안전에 있다(울산 플랫폼 기준) */}
       <Section title="설비 상태">
-        <div className="border-b border-white/5 py-2">
+        <div className="py-2">
           <div className="flex items-baseline justify-between">
             <span className="text-[13px] font-semibold text-slate-200">설비 상태 (Health Index)</span>
             <span className={`text-[18px] font-extrabold ${low ? 'text-slate-100' : 'text-slate-500'}`}>
@@ -116,11 +117,6 @@ export function DxSensorsSection({ plantCode }: { plantCode?: number }) {
           </div>
           <p className="mt-1 text-[12px] text-slate-500">설비 상태 점수 0~100, 높을수록 양호</p>
           <p className="text-[12px] text-slate-500">1시간 갱신{low ? ` · ${hhmm(low.w.windowStartedAt)}~${hhmm(low.w.windowEndedAt)}` : ''}</p>
-        </div>
-        {/* 발전량 예측 — 아이티공간이 외부 제공 방식을 정하면 연계(문서 6.3) */}
-        <div className="flex items-baseline justify-between py-2">
-          <span className="text-[13px] font-semibold text-slate-200">발전량 예측</span>
-          <span className="text-[13px] font-extrabold text-slate-500">제공 전</span>
         </div>
       </Section>
 

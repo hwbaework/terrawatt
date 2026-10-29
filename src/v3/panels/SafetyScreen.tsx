@@ -25,7 +25,7 @@ import { TrendChart } from './TrendChart';
    · 계산식은 화면에 쓰지 않는다. 값이 없으면 '미산출', 15분 넘게 멈추면 '갱신 지연'(문서 6.2)
    · 등급 색은 울산과 같게 — 위험 · 경고 빨강, 주의 amber, 관찰 회색, 정상 초록 */
 
-const NONE = '미산출';
+const NONE = '-';
 const fx = (v: number | null | undefined, d = 1) =>
   v == null ? null : v.toLocaleString('ko-KR', { minimumFractionDigits: d, maximumFractionDigits: d });
 
@@ -155,7 +155,6 @@ export function SafetyScreen({ plantCode }: { plantCode: number | undefined }) {
         <div className="flex items-center justify-between py-2">
           <span className="text-[13px] font-semibold text-slate-200">아크 지수</span>
           <span className="flex items-center gap-2">
-            <span className="text-[13px] font-extrabold text-slate-500">{NONE}</span>
             <span className="rounded bg-white/10 px-1.5 py-0.5 text-[12px] font-bold text-slate-400">판정 보류</span>
           </span>
         </div>

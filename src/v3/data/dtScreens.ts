@@ -198,7 +198,6 @@ export const DT_SCREENS: DtScreen[] = [
         title: '설비 상태',
         items: [
           { label: '건전성 지수 (Health Index)', source: 'DX API-003 health', period: '1시간', status: 'waiting', note: 'peak/mean/area 통계' },
-          { label: '발전량 예측', source: '아이티공간 발전량 예측(문서 6.3)', period: '15분', status: 'waiting', note: '외부 제공 전' },
         ],
       },
       {
