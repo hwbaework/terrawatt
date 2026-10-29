@@ -158,7 +158,7 @@ export function DxDashboard({ onClose, initialPlant = 17514 }: { onClose: () => 
           </Card>
           <Card
             title="발전량 예측"
-            info="다음 1시간 P50 예측값입니다. 외부 제공 방식(MQTT / API)이 정해지면 연계합니다. P10~P90 은 확률 구간이 아닌 참고 범위입니다."
+            info="다음 1시간의 대표 예측값입니다. 외부 제공 방식(MQTT / API)이 정해지면 연계합니다. 예상 범위는 적게 · 많게 나올 때의 폭이며, 확률 구간이 아닌 참고 범위입니다."
           >
             <div className="mb-2 flex items-center gap-2">
               <span className="text-[30px] font-extrabold leading-none text-slate-500">제공 전</span>
@@ -228,7 +228,7 @@ export function DxDashboard({ onClose, initialPlant = 17514 }: { onClose: () => 
           {/* 발전량 실측 · 예측 추이 — 예측 외부 제공 전 */}
           <Card
             title="발전량 실측 · 예측 추이"
-            info="제공되면 실측은 실선, P50 은 점선, P10~P90 참고 범위는 음영으로 지난 24시간과 향후 36시간을 그리고, 최근 7일 오차율을 함께 보여 줍니다."
+            info="제공되면 실측은 실선, 예측값은 점선, 예상 범위는 음영으로 지난 24시간과 향후 36시간을 그리고, 최근 7일 오차율을 함께 보여 줍니다."
           >
             <div className="flex h-[180px] items-center justify-center rounded-lg border border-dashed border-white/10 text-[13px] text-slate-500">
               발전량 예측 제공 전
@@ -250,7 +250,7 @@ function RiskBars({ row }: { row?: Row }) {
   const sf = row?.sf;
   const top = topRisk(sf);
   return (
-    <Card title={`선택 센서 상세${row ? `: ${row.name}` : ''} · 항목별 위험점수`} info="항목별 위험점수 0~100, 높을수록 위험합니다. 가장 높은 항목을 강조합니다. 아크는 제공 전까지 미산출입니다.">
+    <Card title={`선택 센서 상세${row ? `: ${row.name}` : ''} · 항목별 위험점수`} info="항목별 위험점수 0~100, 높을수록 위험합니다. 가장 높은 항목이 전기안전지수를 낮춘 항목이라 강조합니다. 아크는 제공 전까지 미산출입니다.">
       <div className="space-y-2">
         {RISK_ITEMS.map((it) => {
           const v = sf?.risks[it.key];

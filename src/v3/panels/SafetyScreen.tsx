@@ -84,7 +84,7 @@ export function SafetyScreen({ plantCode }: { plantCode: number | undefined }) {
       <Section title="화재징후 판정 (DX 안전지수)">
         <div className="mb-2 flex items-center justify-between">
           <span className="text-[13px] font-semibold text-slate-200">
-            전기안전지수 <InfoHint text="0~100, 높을수록 양호합니다. 센서가 여러 대면 가장 낮은 값입니다. 당사 운영 기준의 상태 지표이며 법정 · 표준 판정이 아닙니다. 보호계전기 동작을 대신하지 않습니다." label="전기안전지수" align="left" />
+            전기안전지수 <InfoHint text="0~100, 높을수록 양호합니다. 센서가 여러 대면 가장 낮은 값입니다. 아래 항목 중 가장 높은 위험점수가 지수를 낮춘 항목입니다. 당사 운영 기준의 상태 지표이며 법정 · 표준 판정이 아닙니다. 보호계전기 동작을 대신하지 않습니다." label="전기안전지수" align="left" />
           </span>
           <span className="flex items-center gap-2">
             <span className={`text-[20px] font-extrabold ${worst && !late ? 'text-slate-100' : 'text-slate-500'}`}>
