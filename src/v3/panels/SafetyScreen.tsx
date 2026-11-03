@@ -129,7 +129,7 @@ function SafetyTrend({ mac }: { mac: string }) {
           max={100}
           min={Math.max(0, Math.floor(Math.min(...pts.map((p) => p.v)) / 10) * 10 - 10)}
           marks={marks}
-          unit="전기안전지수 · 5분 · 점 = 등급이 바뀐 시각"
+          unit="전기안전지수 · 5분"
           label="전기안전지수 24시간 추이"
         />
       ) : (
