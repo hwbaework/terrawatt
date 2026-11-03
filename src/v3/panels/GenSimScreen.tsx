@@ -95,7 +95,7 @@ export function GenSimScreen({
               key={p.n}
               type="button"
               onClick={() => setMonths(p.n)}
-              className={`flex-1 rounded-lg py-2 text-[13px] font-bold transition-colors ${
+              className={`flex-1 rounded-lg py-2 text-[14px] font-bold transition-colors ${
                 months === p.n ? 'bg-blue-600 text-white' : 'bg-white/[0.06] text-slate-300 hover:bg-white/10'
               }`}
             >
@@ -105,7 +105,7 @@ export function GenSimScreen({
           <button
             type="button"
             onClick={() => setMonths('custom')}
-            className={`flex-1 rounded-lg py-2 text-[13px] font-bold transition-colors ${
+            className={`flex-1 rounded-lg py-2 text-[14px] font-bold transition-colors ${
               months === 'custom' ? 'bg-blue-600 text-white' : 'bg-white/[0.06] text-slate-300 hover:bg-white/10'
             }`}
           >
@@ -119,19 +119,19 @@ export function GenSimScreen({
               type="month"
               value={from}
               onChange={(e) => setFrom(e.target.value)}
-              className="flex-1 rounded-lg border border-white/10 bg-white/5 px-2 py-1.5 text-[13px] text-slate-200 outline-none [color-scheme:dark]"
+              className="flex-1 rounded-lg border border-white/10 bg-white/5 px-2 py-1.5 text-[14px] text-slate-200 outline-none [color-scheme:dark]"
             />
-            <span className="text-[13px] text-slate-500">~</span>
+            <span className="text-[14px] text-slate-300">~</span>
             <input
               type="month"
               value={to}
               onChange={(e) => setTo(e.target.value)}
-              className="flex-1 rounded-lg border border-white/10 bg-white/5 px-2 py-1.5 text-[13px] text-slate-200 outline-none [color-scheme:dark]"
+              className="flex-1 rounded-lg border border-white/10 bg-white/5 px-2 py-1.5 text-[14px] text-slate-200 outline-none [color-scheme:dark]"
             />
           </div>
         )}
 
-        <p className="mt-2 text-[11.5px] text-slate-500">
+        <p className="mt-2 text-[13px] text-slate-300">
           {site.label} · 설비 {capacityKw.toLocaleString('ko-KR', { maximumFractionDigits: 2 })} kW · 날씨 {WEATHER_YEAR}년 울산 실측
         </p>
       </Section>
@@ -139,7 +139,7 @@ export function GenSimScreen({
       {/* 적용 단가 — 기본 157.6원(자가소비), 편집 가능(2026-08-24). 바꾸면 결과의 금액이 바로 갱신된다 */}
       <Section title="적용 단가 (자가소비)">
         <div className="flex items-center justify-between">
-          <span className="text-[13px] text-slate-400">현재 전력량 단가</span>
+          <span className="text-[14px] text-slate-300">현재 전력량 단가</span>
           <div className="flex items-center gap-1.5">
             <input
               type="number"
@@ -149,7 +149,7 @@ export function GenSimScreen({
               onChange={(e) => onPriceChange(Math.max(0, Number(e.target.value)))}
               className="w-24 rounded-lg border border-white/10 bg-white/5 px-2 py-1.5 text-right text-[14px] font-bold text-white outline-none focus:border-sky-400/60"
             />
-            <span className="text-[12px] text-slate-500">원/kWh</span>
+            <span className="text-[13px] text-slate-300">원/kWh</span>
           </div>
         </div>
       </Section>
@@ -158,7 +158,7 @@ export function GenSimScreen({
 
       {error && (
         <div className="px-5 pb-2">
-          <p className="rounded-lg bg-red-500/10 px-2.5 py-2 text-[12px] leading-relaxed text-red-300">{error}</p>
+          <p className="rounded-lg bg-red-500/10 px-2.5 py-2 text-[13px] leading-relaxed text-red-300">{error}</p>
         </div>
       )}
     </>

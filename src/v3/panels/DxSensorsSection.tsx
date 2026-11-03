@@ -34,7 +34,7 @@ function Line({ label, value, unit }: { label: string; value: string | null; uni
   return (
     <div className="flex justify-between gap-3">
       <dt className="text-slate-300">{label}</dt>
-      <dd className={`font-bold ${value ? 'text-white' : 'text-slate-400'}`}>
+      <dd className={`font-bold ${value ? 'text-white' : 'text-slate-300'}`}>
         {value ?? NONE}
         {value && unit ? ` ${unit}` : ''}
       </dd>
@@ -71,7 +71,7 @@ function InverterTrend({ mac }: { mac: string }) {
             key={x.code}
             type="button"
             onClick={() => setCode(x.code)}
-            className={`rounded px-2 py-1 text-[11.5px] font-bold transition-colors ${
+            className={`rounded px-2 py-1 text-[13px] font-bold transition-colors ${
               code === x.code ? 'bg-blue-600 text-white' : 'bg-white/[0.06] text-slate-300 hover:bg-white/10'
             }`}
           >
@@ -82,7 +82,7 @@ function InverterTrend({ mac }: { mac: string }) {
       {pts.length ? (
         <TrendChart pts={pts} unit={`${t.label} (${t.unit}) · 5분`} label={`${t.label} 24시간 추이`} tip={(p) => `${fx(p.v, t.code === 'ground_current' ? 3 : 1)} ${t.unit}`} />
       ) : (
-        <div className="flex h-[110px] items-center justify-center rounded-lg border border-dashed border-white/10 text-[12px] text-slate-500">
+        <div className="flex h-[110px] items-center justify-center rounded-lg border border-dashed border-white/10 text-[13px] text-slate-300">
           {hist.status === 'loading' ? '불러오는 중' : NONE}
         </div>
       )}
@@ -109,14 +109,14 @@ export function DxSensorsSection({ plantCode }: { plantCode?: number }) {
       <Section title="설비 상태">
         <div className="py-2">
           <div className="flex items-baseline justify-between">
-            <span className="text-[13px] font-semibold text-slate-200">설비 상태 (Health Index)</span>
-            <span className={`text-[20px] font-extrabold ${low ? 'text-white' : 'text-slate-400'}`}>
+            <span className="text-[14px] font-semibold text-slate-200">설비 상태 (Health Index)</span>
+            <span className={`text-[20px] font-extrabold ${low ? 'text-white' : 'text-slate-300'}`}>
               {fx(low?.v) ?? NONE}
-              {low && <span className="ml-1 text-[13px] font-bold text-slate-300">/ 100</span>}
+              {low && <span className="ml-1 text-[14px] font-bold text-slate-300">/ 100</span>}
             </span>
           </div>
-          <p className="mt-1 text-[13px] text-slate-300">설비 상태 점수 0~100, 높을수록 양호</p>
-          <p className="text-[13px] text-slate-300">1시간 갱신{low ? ` · ${hhmm(low.w.windowStartedAt)}~${hhmm(low.w.windowEndedAt)}` : ''}</p>
+          <p className="mt-1 text-[14px] text-slate-300">설비 상태 점수 0~100, 높을수록 양호</p>
+          <p className="text-[14px] text-slate-300">1시간 갱신{low ? ` · ${hhmm(low.w.windowStartedAt)}~${hhmm(low.w.windowEndedAt)}` : ''}</p>
         </div>
       </Section>
 
@@ -135,7 +135,7 @@ export function DxSensorsSection({ plantCode }: { plantCode?: number }) {
                   onClick={() => setOpen(isOpen ? null : s.mac)}
                   className="flex w-full items-center justify-between px-3 py-2.5 text-left hover:bg-white/[0.04]"
                 >
-                  <span className="flex items-center text-[13.5px] font-bold text-slate-200">
+                  <span className="flex items-center text-[14px] font-bold text-slate-200">
                     {/* 점 — 수신 중 초록 / 수집 중단 빨강 / 대상 아님 · 응답 없음 회색 */}
                     <span
                       className={`mr-1.5 inline-block h-[7px] w-[7px] shrink-0 rounded-full ${!isDxTarget(s.mac) || latest.status !== 'ok' ? 'bg-slate-500' : stale ? 'bg-red-400' : 'bg-emerald-400'}`}
@@ -144,11 +144,11 @@ export function DxSensorsSection({ plantCode }: { plantCode?: number }) {
                   </span>
                   <span className="flex items-baseline gap-1">
                     {stale ? (
-                      <span className="text-[13px] font-bold text-slate-300">{stopLabel(s.mac, latest.status === 'ok')}</span>
+                      <span className="text-[14px] font-bold text-slate-300">{stopLabel(s.mac, latest.status === 'ok')}</span>
                     ) : (
                       <>
-                        <span className={`text-[17px] font-extrabold ${score ? 'text-white' : 'text-slate-400'}`}>{score ?? NONE}</span>
-                        {score && <span className="text-[13px] font-bold text-slate-300">점</span>}
+                        <span className={`text-[17px] font-extrabold ${score ? 'text-white' : 'text-slate-300'}`}>{score ?? NONE}</span>
+                        {score && <span className="text-[14px] font-bold text-slate-300">점</span>}
                       </>
                     )}
                   </span>
@@ -156,7 +156,7 @@ export function DxSensorsSection({ plantCode }: { plantCode?: number }) {
                 {isOpen && (
                   <div className="border-t border-white/10 px-3 py-2.5">
                     {stale ? (
-                      <p className="text-[13px] text-slate-300">{d ? `수집 중단 · 마지막 수신 ${d.receivedAt}` : stopLabel(s.mac, latest.status === 'ok')}</p>
+                      <p className="text-[14px] text-slate-300">{d ? `수집 중단 · 마지막 수신 ${d.receivedAt}` : stopLabel(s.mac, latest.status === 'ok')}</p>
                     ) : (
                       <dl className="space-y-2 text-[14px]">
                         {/* 울산 예지보전 설비별 상태 표와 같은 칸 · 순서 · 이름 */}

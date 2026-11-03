@@ -147,7 +147,7 @@ export function VWorld3DView({
       )}
 
       {status.state === 'loading' && (
-        <div className="absolute inset-0 z-20 flex items-center justify-center bg-slate-950/80 text-sm text-slate-400">
+        <div className="absolute inset-0 z-20 flex items-center justify-center bg-slate-950/80 text-sm text-slate-300">
           브이월드 3D 엔진 준비 중…
         </div>
       )}
@@ -156,15 +156,15 @@ export function VWorld3DView({
         <div className="absolute inset-0 z-20 flex items-center justify-center bg-slate-950/90 p-6">
           <div className="max-w-lg rounded-xl bg-red-500/10 px-6 py-5 text-red-200">
             <div className="text-sm font-bold">{status.reason}</div>
-            <div className="mt-2 text-xs leading-relaxed text-red-300/90">{status.detail}</div>
+            <div className="mt-2 text-[13px] leading-relaxed text-red-300/90">{status.detail}</div>
             <button
               type="button"
               onClick={() => window.location.reload()}
-              className="mt-4 w-full rounded-lg bg-white/10 py-2 text-xs font-bold text-slate-100 transition-colors hover:bg-white/20"
+              className="mt-4 w-full rounded-lg bg-white/10 py-2 text-[13px] font-bold text-slate-100 transition-colors hover:bg-white/20"
             >
               다시 불러오기
             </button>
-            <div className="mt-2 text-[11px] leading-relaxed text-slate-400">
+            <div className="mt-2 text-[13px] leading-relaxed text-slate-300">
               대개 한 번 다시 불러오면 됩니다. 계속 같은 화면이면 광고·추적 차단 확장을 이 사이트에서만
               꺼보세요.
             </div>

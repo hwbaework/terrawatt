@@ -161,7 +161,7 @@ export const DISOP: Disaster[] = [
 
 /** 레벨 색 — 표의 색을 그대로: 관심=노랑 / 주의=주황 / 경계=빨강 */
 export const LEVEL_STYLE: Record<LevelNo, { on: string; off: string; text: string }> = {
-  1: { on: 'bg-amber-400/25 text-amber-200 ring-1 ring-amber-400/50', off: 'bg-white/[0.04] text-slate-400', text: 'text-amber-300' },
-  2: { on: 'bg-orange-500/25 text-orange-200 ring-1 ring-orange-400/50', off: 'bg-white/[0.04] text-slate-400', text: 'text-orange-300' },
-  3: { on: 'bg-red-500/25 text-red-200 ring-1 ring-red-400/50', off: 'bg-white/[0.04] text-slate-400', text: 'text-red-300' },
+  1: { on: 'bg-amber-400/25 text-amber-200 ring-1 ring-amber-400/50', off: 'bg-white/[0.04] text-slate-300', text: 'text-amber-300' },
+  2: { on: 'bg-orange-500/25 text-orange-200 ring-1 ring-orange-400/50', off: 'bg-white/[0.04] text-slate-300', text: 'text-orange-300' },
+  3: { on: 'bg-red-500/25 text-red-200 ring-1 ring-red-400/50', off: 'bg-white/[0.04] text-slate-300', text: 'text-red-300' },
 };

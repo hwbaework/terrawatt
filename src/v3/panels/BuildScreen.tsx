@@ -42,14 +42,14 @@ const num = (n: number, d = 0) => n.toLocaleString('ko-KR', { minimumFractionDig
 /* ── 폼 부품 — 사업성 시뮬 폼과 같은 생김새(라벨 왼쪽, 값 오른쪽, 단위 꼬리).
    ★ 모든 줄이 같은 3열 격자(라벨 | 값칸 124px | 단위 44px)라 입력칸이 들쑥날쑥하지 않다 ── */
 const BOX_W = 'w-[124px]';
-const boxCls = `${BOX_W} rounded-md border border-white/10 bg-slate-900/70 px-2 py-1 text-[12px] font-bold text-white outline-none focus:border-sky-400/60`;
+const boxCls = `${BOX_W} rounded-md border border-white/10 bg-slate-900/70 px-2 py-1 text-[13px] font-bold text-white outline-none focus:border-sky-400/60`;
 const numCls = `${boxCls} text-right`;
-const selectCls = `${boxCls} text-[13px] text-slate-100`;
+const selectCls = `${boxCls} text-[14px] text-slate-100`;
 
 function FieldRow({ label, children, hint }: { label: string; children: ReactNode; hint?: string }) {
   return (
-    <div className="grid grid-cols-[1fr_124px_44px] items-center gap-x-1.5 py-1">
-      <span className="min-w-0 text-[13px] leading-tight text-slate-300" title={hint}>
+    <div className="grid grid-cols-[1fr_124px_52px] items-center gap-x-1.5 py-1">
+      <span className="min-w-0 text-[14px] leading-tight text-slate-300" title={hint}>
         {label}
       </span>
       {children}
@@ -57,7 +57,7 @@ function FieldRow({ label, children, hint }: { label: string; children: ReactNod
   );
 }
 const Unit = ({ children }: { children?: ReactNode }) => (
-  <span className="text-[12px] leading-tight text-slate-400">{children}</span>
+  <span className="text-[13px] leading-tight text-slate-300">{children}</span>
 );
 function NumField({
   label,
@@ -125,7 +125,7 @@ function SelectField({
 function AutoField({ label, value, unit }: { label: string; value: string; unit: string }) {
   return (
     <FieldRow label={label}>
-      <span className={`${BOX_W} rounded-md border border-dashed border-white/10 bg-white/[0.03] px-2 py-1 text-right text-[12px] font-bold text-slate-300`}>
+      <span className={`${BOX_W} rounded-md border border-dashed border-white/10 bg-white/[0.03] px-2 py-1 text-right text-[13px] font-bold text-slate-300`}>
         {value}
       </span>
       <Unit>{unit}</Unit>
@@ -169,23 +169,23 @@ function SketchStep({ onBuilt }: { onBuilt: (b: SketchBuilding) => void }) {
     <>
       <Section title="지붕 그리기">
         {!engineOk && (
-          <p className="mt-2 rounded-lg bg-red-500/10 px-2.5 py-2 text-[12px] text-red-300">
+          <p className="mt-2 rounded-lg bg-red-500/10 px-2.5 py-2 text-[13px] text-red-300">
             3D 엔진이 아직 준비되지 않았습니다 — 잠시 후 화면을 다시 열어 주세요.
           </p>
         )}
         <div className="flex items-center gap-2">
           <div className="flex-1 rounded-lg bg-white/[0.04] px-3 py-2.5">
-            <div className="text-[12px] text-slate-400">면적{rings.length > 1 ? ` · 조각 ${rings.length}` : ''}</div>
-            <div className={`mt-0.5 text-[17px] font-extrabold leading-tight ${canRaise ? 'text-sky-300' : 'text-slate-600'}`}>
+            <div className="text-[13px] text-slate-300">면적{rings.length > 1 ? ` · 조각 ${rings.length}` : ''}</div>
+            <div className={`mt-0.5 text-[17px] font-extrabold leading-tight ${canRaise ? 'text-sky-300' : 'text-slate-300'}`}>
               {canRaise ? num(area) : '—'}
-              <span className="ml-1 text-[12px] font-bold text-slate-400">㎡</span>
+              <span className="ml-1 text-[13px] font-bold text-slate-300">㎡</span>
             </div>
           </div>
           <button
             type="button"
             onClick={clearSketch}
             disabled={rings.length === 0}
-            className="flex items-center justify-center gap-1 self-stretch rounded-lg bg-white/[0.06] px-3 text-[13px] font-bold text-slate-300 transition-colors hover:bg-white/10 disabled:text-slate-600 disabled:hover:bg-white/[0.06]"
+            className="flex items-center justify-center gap-1 self-stretch rounded-lg bg-white/[0.06] px-3 text-[14px] font-bold text-slate-300 transition-colors hover:bg-white/10 disabled:text-slate-600 disabled:hover:bg-white/[0.06]"
           >
             <MIcon name="close" size={14} />
             지우기
@@ -198,8 +198,8 @@ function SketchStep({ onBuilt }: { onBuilt: (b: SketchBuilding) => void }) {
           type="button"
           onClick={raise}
           disabled={!canRaise}
-          className={`flex w-full items-center justify-center gap-1.5 rounded-lg py-2.5 text-[12px] font-bold transition-colors ${
-            canRaise ? 'bg-sky-600/90 text-white hover:bg-sky-600' : 'bg-white/[0.04] text-slate-600'
+          className={`flex w-full items-center justify-center gap-1.5 rounded-lg py-2.5 text-[13px] font-bold transition-colors ${
+            canRaise ? 'bg-sky-600/90 text-white hover:bg-sky-600' : 'bg-white/[0.04] text-slate-300'
           }`}
         >
           <MIcon name="add" size={16} />
@@ -243,7 +243,7 @@ function ProjectStep({
               key={m}
               type="button"
               onClick={() => setMode(m)}
-              className={`rounded-md py-1.5 text-[13px] font-bold transition-colors ${
+              className={`rounded-md py-1.5 text-[14px] font-bold transition-colors ${
                 p.mode === m ? 'bg-blue-600 text-white' : 'text-slate-300 hover:bg-white/10'
               }`}
             >
@@ -279,23 +279,23 @@ function ProjectStep({
       {/* ── 자동 산정 — 위 입력(면적·모듈·장당 면적·발전시간·감소율)이 바뀌면 여기 숫자가 바뀐다. 눈에 띄게 ── */}
       <div className="px-5 pt-3">
         <div className="rounded-xl border border-sky-400/30 bg-sky-500/10 px-4 py-3">
-          <div className="flex items-center gap-1 text-[12px] font-bold text-sky-300">
+          <div className="flex items-center gap-1 text-[13px] font-bold text-sky-300">
             <MIcon name="expand_more" size={12} />
             위 값으로 자동 산정
           </div>
           <div className="mt-2 grid grid-cols-2 gap-2">
             <div>
-              <div className="text-[11.5px] text-slate-400">설치용량</div>
+              <div className="text-[13px] text-slate-300">설치용량</div>
               <div className="text-[18px] font-extrabold leading-tight text-white">
                 {num(pv.capacityKw, 2)}
-                <span className="ml-0.5 text-[12px] font-bold text-slate-400">kW</span>
+                <span className="ml-0.5 text-[13px] font-bold text-slate-300">kW</span>
               </div>
             </div>
             <div>
-              <div className="text-[11.5px] text-slate-400">일 평균 발전량</div>
+              <div className="text-[13px] text-slate-300">일 평균 발전량</div>
               <div className="text-[18px] font-extrabold leading-tight text-sky-200">
                 {num(pv.yearKwh / 365)}
-                <span className="ml-0.5 text-[12px] font-bold text-slate-400">kWh</span>
+                <span className="ml-0.5 text-[13px] font-bold text-slate-300">kWh</span>
               </div>
             </div>
           </div>
@@ -309,8 +309,8 @@ function ProjectStep({
                 적용 단가는 아래 고정 블록으로만 보여주고, 상승률·피크감축만 입력으로 남긴다.
                 (월평균 사용량·자가소비율은 2026-08-19에 이미 뺐다 — 공장은 사용량 ≫ 옥상 발전량이라 늘 100%) */}
             <div className="rounded-lg border border-white/10 bg-white/[0.03] px-3 py-2.5">
-              <span className="text-[12px] font-bold text-slate-400">적용 단가 (자가소비)</span>
-              <div className="mt-1.5 flex flex-wrap gap-x-3 gap-y-0.5 text-[13px] text-slate-200">
+              <span className="text-[13px] font-bold text-slate-300">적용 단가 (자가소비)</span>
+              <div className="mt-1.5 flex flex-wrap gap-x-3 gap-y-0.5 text-[14px] text-slate-200">
                 <span>기본요금 <b className="text-white">{num(SELF_TARIFF.basicKrwKw)}</b> 원/kW</span>
                 <span>전력량 <b className="text-white">{num(SELF_TARIFF.energyKrwKwh, 1)}</b> 원/kWh</span>
               </div>
@@ -337,7 +337,7 @@ function ProjectStep({
         <button
           type="button"
           onClick={() => onRunSim(b)}
-          className="flex w-full items-center justify-center gap-1.5 rounded-lg bg-blue-600 py-2.5 text-[12px] font-bold text-white transition-colors hover:bg-blue-500"
+          className="flex w-full items-center justify-center gap-1.5 rounded-lg bg-blue-600 py-2.5 text-[13px] font-bold text-white transition-colors hover:bg-blue-500"
         >
           <MIcon name="bolt" size={16} />
           시뮬레이션 실행 — {num(pv.capacityKw, 2)} kW
@@ -345,7 +345,7 @@ function ProjectStep({
         <button
           type="button"
           onClick={onRemove}
-          className="mt-1 flex w-full items-center justify-center gap-1 rounded-lg py-1.5 text-[12.5px] font-bold text-slate-500 transition-colors hover:bg-white/5 hover:text-red-300"
+          className="mt-1 flex w-full items-center justify-center gap-1 rounded-lg py-1.5 text-[13px] font-bold text-slate-300 transition-colors hover:bg-white/5 hover:text-red-300"
         >
           <MIcon name="close" size={13} />이 건물 지우기
         </button>
@@ -387,7 +387,7 @@ export function BuildScreen({
                 key={b.id}
                 type="button"
                 onClick={() => setSelected(b.id)}
-                className={`flex items-center gap-1 rounded-full border px-2.5 py-1 text-[12.5px] font-bold transition-colors ${
+                className={`flex items-center gap-1 rounded-full border px-2.5 py-1 text-[13px] font-bold transition-colors ${
                   on ? 'border-sky-400/70 bg-sky-500/20 text-sky-100' : 'border-white/10 bg-white/[0.04] text-slate-300 hover:bg-white/10'
                 }`}
               >
@@ -400,8 +400,8 @@ export function BuildScreen({
           <button
             type="button"
             onClick={() => setSelected(null)}
-            className={`flex items-center gap-0.5 rounded-full border border-dashed px-2.5 py-1 text-[12.5px] font-bold transition-colors ${
-              selected === null ? 'border-sky-400/70 text-sky-200' : 'border-white/15 text-slate-400 hover:text-slate-200'
+            className={`flex items-center gap-0.5 rounded-full border border-dashed px-2.5 py-1 text-[13px] font-bold transition-colors ${
+              selected === null ? 'border-sky-400/70 text-sky-200' : 'border-white/15 text-slate-300 hover:text-slate-200'
             }`}
           >
             <MIcon name="add" size={12} />새 건물

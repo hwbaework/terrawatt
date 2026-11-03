@@ -71,7 +71,7 @@ export function TweakPanel() {
         onClick={() => setOpen((v) => !v)}
         title="배치 조절 — 건물 위치·방향 맞추기"
         className={`flex h-[30px] w-[30px] items-center justify-center rounded-lg transition-colors ${
-          open ? 'bg-blue-600 text-white' : 'bg-white/10 text-slate-400 hover:bg-white/20 hover:text-slate-200'
+          open ? 'bg-blue-600 text-white' : 'bg-white/10 text-slate-300 hover:bg-white/20 hover:text-slate-200'
         }`}
       >
         <MIcon name="open_with" size={15} />
@@ -85,7 +85,7 @@ export function TweakPanel() {
               setSel(e.target.value);
               setState(null);
             }}
-            className="w-full rounded-md border border-white/10 bg-white/5 px-1.5 py-1 text-[11px] text-slate-200 outline-none"
+            className="w-full rounded-md border border-white/10 bg-white/5 px-1.5 py-1 text-[13px] text-slate-200 outline-none"
           >
             {MODELED_FACILITIES.map((f) => (
               <option key={f.id} value={f.id} className="bg-slate-900">
@@ -104,7 +104,7 @@ export function TweakPanel() {
               type="button"
               onClick={() => setStepM((m) => (m === 1 ? 5 : m === 5 ? 20 : 1))}
               title="한 번에 움직일 거리 바꾸기"
-              className="h-7 w-7 rounded-md bg-blue-600/80 text-[10px] font-bold text-white transition-colors hover:bg-blue-600"
+              className="h-7 w-7 rounded-md bg-blue-600/80 text-[12px] font-bold text-white transition-colors hover:bg-blue-600"
             >
               {stepM}m
             </button>
@@ -127,7 +127,7 @@ export function TweakPanel() {
           </div>
 
           {/* 현재 값 + 복사 */}
-          <div className="mt-2 rounded-md bg-white/[0.04] px-2 py-1.5 text-[9.5px] leading-relaxed text-slate-400">
+          <div className="mt-2 rounded-md bg-white/[0.04] px-2 py-1.5 text-[12px] leading-relaxed text-slate-300">
             {state ? (
               <>
                 {state.lng.toFixed(5)}, {state.lat.toFixed(5)}
@@ -142,7 +142,7 @@ export function TweakPanel() {
             type="button"
             onClick={copy}
             disabled={!state}
-            className="mt-1.5 w-full rounded-md bg-white/10 py-1 text-[10px] font-bold text-slate-200 transition-colors hover:bg-white/20 disabled:opacity-40"
+            className="mt-1.5 w-full rounded-md bg-white/10 py-1 text-[12px] font-bold text-slate-200 transition-colors hover:bg-white/20 disabled:opacity-40"
           >
             {copied ? '✓ 복사됨' : '좌표 복사'}
           </button>

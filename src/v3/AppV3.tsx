@@ -173,7 +173,7 @@ export default function AppV3() {
       <div className="flex items-center justify-center bg-slate-900 p-6" style={{ height: '100dvh' }}>
         <div className="max-w-md rounded-xl bg-red-500/10 px-6 py-5 text-red-200">
           <div className="text-sm font-bold">브이월드 인증키가 없습니다</div>
-          <div className="mt-2 text-xs leading-relaxed text-red-300/90">
+          <div className="mt-2 text-[13px] leading-relaxed text-red-300/90">
             <code className="rounded bg-black/30 px-1">.env</code> 에{' '}
             <code className="rounded bg-black/30 px-1">VITE_VWORLD_KEY=발급받은키</code> 를 넣고 개발 서버를 다시
             시작해 주세요.
@@ -208,7 +208,7 @@ export default function AppV3() {
               <MIcon name="bolt" size={16} className="text-amber-400" />
               TerraWatt
             </div>
-            <div className="mt-0.5 text-[10px] text-slate-400">에너지 자급자족 디지털트윈</div>
+            <div className="mt-0.5 text-[12px] text-slate-300">에너지 자급자족 디지털트윈</div>
           </div>
           <VersionSwitch />
         </div>
@@ -228,7 +228,7 @@ export default function AppV3() {
             }}
             title="상위 화면(산단 전체)으로 돌아간다"
             className="mb-1.5 flex w-full items-center justify-center gap-1.5 rounded-lg bg-white/[0.04] px-2.5 py-2
-                       text-[12px] font-bold text-slate-400 transition-colors hover:bg-white/10 hover:text-slate-200"
+                       text-[13px] font-bold text-slate-300 transition-colors hover:bg-white/10 hover:text-slate-200"
           >
             {/* 아이콘 폰트는 **서브셋**이라 쓰던 것만 들어 있다 — 새 이름을 넣으면 글자로 나온다.
                 서랍의 "돌아가기"와 같은 화살표(chevron_right 180°)를 그대로 쓴다 */}
@@ -250,14 +250,14 @@ export default function AppV3() {
             }}
             className="flex flex-1 items-center gap-2 rounded-lg bg-white/10 px-2.5 py-2 text-left transition-colors hover:bg-white/20"
           >
-            <MIcon name="factory" size={16} className="shrink-0 text-slate-400" />
+            <MIcon name="factory" size={16} className="shrink-0 text-slate-300" />
             <span className="min-w-0 flex-1">
               <span className="flex items-center gap-1.5">
-                <span className="truncate text-[12.5px] font-bold text-slate-100">{HOME.name}</span>
+                <span className="truncate text-[13px] font-bold text-slate-100">{HOME.name}</span>
                 {/* 상태는 **정상 / 오류** 두 낱말만. 알람이 하나라도 떠 있으면 오류 —
                     어떤 알람인지는 팝업이 말한다 */}
                 <span
-                  className={`flex shrink-0 items-center gap-1 rounded-full px-1.5 py-[1px] text-[10px] font-bold ${
+                  className={`flex shrink-0 items-center gap-1 rounded-full px-1.5 py-[1px] text-[12px] font-bold ${
                     plantEvent ? 'bg-red-500/15 text-red-300' : 'bg-emerald-500/15 text-emerald-300'
                   }`}
                 >
@@ -267,11 +267,11 @@ export default function AppV3() {
               </span>
               <span className="mt-0.5 flex items-baseline gap-1">
                 <span className={`h-1.5 w-1.5 animate-pulse rounded-full ${plantEvent ? 'bg-red-400' : 'bg-emerald-400'}`} />
-                <span className={`text-[13px] font-extrabold ${plantEvent ? 'text-red-300' : 'text-emerald-300'}`}>{liveKw.toLocaleString('ko-KR', { minimumFractionDigits: 1, maximumFractionDigits: 1 })}</span>
-                <span className="text-[12px] font-bold text-slate-300">kW</span>
+                <span className={`text-[14px] font-extrabold ${plantEvent ? 'text-red-300' : 'text-emerald-300'}`}>{liveKw.toLocaleString('ko-KR', { minimumFractionDigits: 1, maximumFractionDigits: 1 })}</span>
+                <span className="text-[13px] font-bold text-slate-300">kW</span>
               </span>
             </span>
-            <MIcon name="chevron_right" size={16} className="shrink-0 text-slate-500" />
+            <MIcon name="chevron_right" size={16} className="shrink-0 text-slate-300" />
           </button>
         </div>
 
@@ -291,24 +291,24 @@ export default function AppV3() {
                 }}
                 className="flex w-full items-center gap-2 rounded-lg bg-white/[0.06] px-2.5 py-2 text-left transition-colors hover:bg-white/15"
               >
-                <MIcon name="factory" size={16} className="shrink-0 text-slate-400" />
+                <MIcon name="factory" size={16} className="shrink-0 text-slate-300" />
                 <span className="min-w-0 flex-1">
                   <span className="flex items-center gap-1.5">
-                    <span className="truncate text-[12.5px] font-bold text-slate-100">{f.name}</span>
-                    <span className="flex shrink-0 items-center gap-1 rounded-full bg-emerald-500/15 px-1.5 py-[1px] text-[10px] font-bold text-emerald-300">
+                    <span className="truncate text-[13px] font-bold text-slate-100">{f.name}</span>
+                    <span className="flex shrink-0 items-center gap-1 rounded-full bg-emerald-500/15 px-1.5 py-[1px] text-[12px] font-bold text-emerald-300">
                       <span className="h-1.5 w-1.5 rounded-full bg-emerald-400" />
                       {OTHER_PLANT_DEMO[f.id]?.status ?? '정상'}
                     </span>
                   </span>
                   <span className="mt-0.5 flex items-baseline gap-1">
                     <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-emerald-400" />
-                    <span className="text-[13px] font-extrabold text-emerald-300">
+                    <span className="text-[14px] font-extrabold text-emerald-300">
                       {(OTHER_PLANT_DEMO[f.id]?.currentKw ?? 0).toLocaleString('ko-KR', { minimumFractionDigits: 1, maximumFractionDigits: 1 })}
                     </span>
-                    <span className="text-[12px] font-bold text-slate-300">kW</span>
+                    <span className="text-[13px] font-bold text-slate-300">kW</span>
                   </span>
                 </span>
-                <MIcon name="chevron_right" size={16} className="shrink-0 text-slate-500" />
+                <MIcon name="chevron_right" size={16} className="shrink-0 text-slate-300" />
               </button>
             ))}
           </div>
@@ -322,20 +322,20 @@ export default function AppV3() {
                 key={a.id}
                 type="button"
                 onClick={() => goAsset(a.id)}
-                className={`flex items-center gap-1.5 rounded-lg px-2 py-1.5 text-left text-[11px] font-bold transition-colors ${
-                  on ? 'bg-blue-600/80 text-white' : 'bg-white/[0.04] text-slate-400 hover:bg-white/15 hover:text-slate-200'
+                className={`flex items-center gap-1.5 rounded-lg px-2 py-1.5 text-left text-[13px] font-bold transition-colors ${
+                  on ? 'bg-blue-600/80 text-white' : 'bg-white/[0.04] text-slate-300 hover:bg-white/15 hover:text-slate-200'
                 }`}
               >
-                <MIcon name={a.icon} size={14} className={on ? 'text-white' : 'text-slate-500'} />
+                <MIcon name={a.icon} size={14} className={on ? 'text-white' : 'text-slate-300'} />
                 {a.name}
                 <span
-                  className={`ml-auto rounded px-1 py-px text-[8px] font-bold ${
+                  className={`ml-auto rounded px-1 py-px text-[12px] font-bold ${
                     on ? 'bg-white/20 text-white' : 'bg-amber-400/10 text-amber-300/80'
                   }`}
                 >
                   예정
                 </span>
-                <MIcon name="chevron_right" size={14} className={on ? 'text-white/70' : 'text-slate-600'} />
+                <MIcon name="chevron_right" size={14} className={on ? 'text-white/70' : 'text-slate-300'} />
               </button>
             );
           })}
@@ -358,7 +358,7 @@ export default function AppV3() {
           className={`flex h-9 w-9 items-center justify-center rounded-lg transition-colors ${
             panel?.kind === 'facility' || panel?.kind === 'asset'
               ? 'bg-blue-600 text-white'
-              : 'text-slate-400 hover:bg-white/10 hover:text-slate-200'
+              : 'text-slate-300 hover:bg-white/10 hover:text-slate-200'
           }`}
         >
           <MIcon name={focusAsset?.icon ?? 'factory'} size={18} />
@@ -374,7 +374,7 @@ export default function AppV3() {
               onClick={() => toggleDt(s.id)}
               title={`${s.name} — ${s.summary}`}
               className={`flex h-9 w-9 items-center justify-center rounded-lg transition-colors ${
-                on ? 'bg-blue-600 text-white' : 'text-slate-400 hover:bg-white/10 hover:text-slate-200'
+                on ? 'bg-blue-600 text-white' : 'text-slate-300 hover:bg-white/10 hover:text-slate-200'
               }`}
             >
               <MIcon name={s.icon} size={18} />

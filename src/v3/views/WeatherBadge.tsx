@@ -135,20 +135,20 @@ export function WeatherBadge() {
   return (
     <div className="pointer-events-none fixed left-1/2 top-4 z-10 -translate-x-1/2">
       <div className="flex items-center rounded-xl bg-black/65 px-4 py-2 shadow-xl backdrop-blur">
-        <span className="flex items-center gap-1 text-[13.5px] font-extrabold text-white">
+        <span className="flex items-center gap-1 text-[14px] font-extrabold text-white">
           <MIcon name="location_on" size={16} className="text-sky-300" />
           울산 {rw.region.name}
         </span>
         <span className="mx-3 h-4 w-px bg-white/20" />
-        <span className="text-[13px] font-bold text-slate-100">{SKY_LABEL[rw.condition]}</span>
+        <span className="text-[14px] font-bold text-slate-100">{SKY_LABEL[rw.condition]}</span>
         <span className="ml-2 text-[15px] font-extrabold text-white">
           {rw.tempC.toFixed(1)}
-          <span className="ml-0.5 text-[11px] font-bold text-slate-400">℃</span>
+          <span className="ml-0.5 text-[13px] font-bold text-slate-300">℃</span>
         </span>
         <span className="mx-3 h-4 w-px bg-white/20" />
-        <span className="text-[12px] text-slate-300">
-          풍속 <b className="text-[13px] text-white">{rw.windMs.toFixed(1)}</b>
-          <span className="text-[11px] text-slate-400"> ㎧</span>
+        <span className="text-[13px] text-slate-300">
+          풍속 <b className="text-[14px] text-white">{rw.windMs.toFixed(1)}</b>
+          <span className="text-[13px] text-slate-300"> ㎧</span>
         </span>
       </div>
     </div>

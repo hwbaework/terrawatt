@@ -68,11 +68,11 @@ export function DisopSteps({
                 type="button"
                 onClick={() => setLevel(l.level)}
                 disabled={running}
-                className={`flex-1 rounded-lg py-2 text-[12.5px] font-bold transition-colors ${
+                className={`flex-1 rounded-lg py-2 text-[13px] font-bold transition-colors ${
                   level === l.level ? s.on : `${s.off} ${running ? 'opacity-50' : 'hover:bg-white/10'}`
                 }`}
               >
-                {l.name} <span className="text-[11px] opacity-80">Lv{l.level}</span>
+                {l.name} <span className="text-[13px] opacity-80">Lv{l.level}</span>
               </button>
             );
           })}
@@ -80,8 +80,8 @@ export function DisopSteps({
 
         {/* 발령 기준 — 이 레벨이 언제 발령되는가 */}
         <div className="mt-2 rounded-lg bg-white/[0.04] px-3 py-2.5">
-          <span className={`text-[12px] font-extrabold ${st.text}`}>발령 기준</span>
-          <p className="mt-1 text-[12.5px] leading-relaxed text-slate-300">{cur.trigger}</p>
+          <span className={`text-[13px] font-extrabold ${st.text}`}>발령 기준</span>
+          <p className="mt-1 text-[13px] leading-relaxed text-slate-300">{cur.trigger}</p>
         </div>
 
         {/* ② 재생 · 정지 */}
@@ -94,13 +94,13 @@ export function DisopSteps({
         <div className="mb-3">
           <div className="flex items-baseline justify-between">
             <span
-              className={`text-[12.5px] font-extrabold ${
-                ended ? 'text-emerald-300' : running ? 'text-blue-300' : 'text-slate-500'
+              className={`text-[13px] font-extrabold ${
+                ended ? 'text-emerald-300' : running ? 'text-blue-300' : 'text-slate-300'
               }`}
             >
               {phase}
             </span>
-            <span className="text-[11.5px] font-bold text-slate-500">
+            <span className="text-[13px] font-bold text-slate-300">
               {cur.name} Lv{cur.level}
             </span>
           </div>
@@ -128,12 +128,12 @@ export function DisopSteps({
                 )}
                 {/* 노드 */}
                 <span
-                  className={`relative z-10 flex h-[21px] w-[21px] shrink-0 items-center justify-center rounded-full text-[11px] font-extrabold ${
+                  className={`relative z-10 flex h-[21px] w-[21px] shrink-0 items-center justify-center rounded-full text-[13px] font-extrabold ${
                     done
                       ? 'bg-emerald-500/20 text-emerald-300'
                       : now
                         ? 'bg-blue-500 text-white ring-4 ring-blue-500/20'
-                        : 'bg-white/[0.07] text-slate-600'
+                        : 'bg-white/[0.07] text-slate-300'
                   }`}
                 >
                   {done ? '✓' : i + 1}
@@ -141,14 +141,14 @@ export function DisopSteps({
                 {/* 조치 이름 */}
                 <span className="flex min-w-0 flex-1 items-center gap-2 pt-0.5">
                   <span
-                    className={`text-[13px] leading-snug ${
-                      now ? 'font-extrabold text-white' : done ? 'font-bold text-slate-400' : 'font-bold text-slate-600'
+                    className={`text-[14px] leading-snug ${
+                      now ? 'font-extrabold text-white' : done ? 'font-bold text-slate-300' : 'font-bold text-slate-300'
                     }`}
                   >
                     {s}
                   </span>
                   {now && (
-                    <span className="shrink-0 animate-pulse rounded bg-blue-500/20 px-1.5 py-px text-[10.5px] font-bold text-blue-300">
+                    <span className="shrink-0 animate-pulse rounded bg-blue-500/20 px-1.5 py-px text-[12px] font-bold text-blue-300">
                       진행 중
                     </span>
                   )}
@@ -172,12 +172,12 @@ function VideoBox({ title, onClose }: { title: string; onClose: () => void }) {
     <div className="fixed bottom-4 left-4 z-40 w-[26rem] overflow-hidden rounded-xl border border-white/15 bg-slate-950/95 shadow-2xl backdrop-blur">
       <div className="flex items-center gap-2 px-3 py-2">
         <span className="h-2 w-2 animate-pulse rounded-full bg-red-400" />
-        <span className="truncate text-[12.5px] font-extrabold text-slate-100">{title}</span>
+        <span className="truncate text-[13px] font-extrabold text-slate-100">{title}</span>
         <button
           type="button"
           onClick={onClose}
           title="닫기"
-          className="ml-auto rounded-md px-1.5 text-[15px] leading-none text-slate-500 hover:bg-white/10 hover:text-slate-200"
+          className="ml-auto rounded-md px-1.5 text-[15px] leading-none text-slate-300 hover:bg-white/10 hover:text-slate-200"
         >
           ×
         </button>
@@ -186,7 +186,7 @@ function VideoBox({ title, onClose }: { title: string; onClose: () => void }) {
       <div className="relative aspect-video bg-black">
         <div className="absolute inset-0 flex flex-col items-center justify-center gap-2">
           <span className="flex h-12 w-12 items-center justify-center rounded-full bg-white/10 pl-1 text-[20px] text-white/80">▶</span>
-          <span className="text-[12px] font-bold text-slate-500">영상 자리 (예시)</span>
+          <span className="text-[13px] font-bold text-slate-300">영상 자리 (예시)</span>
         </div>
         {/* 재생 중인 느낌 — 아래 진행 막대 */}
         <div className="absolute inset-x-0 bottom-0 h-1 bg-white/10">

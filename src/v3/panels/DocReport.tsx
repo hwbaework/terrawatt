@@ -41,14 +41,14 @@ export function DocReport({ result, onClose, autoPrint }: { result: GenSimResult
         <button
           type="button"
           onClick={() => window.print()}
-          className="rounded-lg bg-blue-600 px-4 py-2 text-[12px] font-bold text-white transition-colors hover:bg-blue-500"
+          className="rounded-lg bg-blue-600 px-4 py-2 text-[13px] font-bold text-white transition-colors hover:bg-blue-500"
         >
           인쇄 · PDF 저장
         </button>
         <button
           type="button"
           onClick={onClose}
-          className="rounded-lg bg-white/15 px-4 py-2 text-[12px] font-bold text-white transition-colors hover:bg-white/25"
+          className="rounded-lg bg-white/15 px-4 py-2 text-[13px] font-bold text-white transition-colors hover:bg-white/25"
         >
           닫기
         </button>
@@ -59,7 +59,7 @@ export function DocReport({ result, onClose, autoPrint }: { result: GenSimResult
         {/* 문서는 색 없이 전부 검정(2026-08-24 사용자 확정) — 브랜드 줄도 뺐다 */}
         <header className="border-b-2 border-black pb-4">
           <h1 className="text-[24px] font-extrabold text-black">발전량 시뮬레이션 보고서</h1>
-          <div className="mt-1 text-[13px] text-black">
+          <div className="mt-1 text-[14px] text-black">
             {HOME.name} 울산공장 · 예측 기간 {first.year}.{first.month} ~ {last.year}.{last.month}
           </div>
         </header>
@@ -74,7 +74,7 @@ export function DocReport({ result, onClose, autoPrint }: { result: GenSimResult
         {/* 설비 정보 */}
         <section className="mt-8">
           <h2 className="mb-2 text-[14px] font-bold text-black">설비 정보</h2>
-          <table className="w-full text-[12.5px]">
+          <table className="w-full text-[13px]">
             <tbody>
               <SpecRow label="사업장" value={`${HOME.name} 울산공장${spec ? ` · ${spec.address}` : ''}`} />
               {plant && <SpecRow label="태양광 설비" value={`${num(plant.capacityKw, 2)} kW · 인버터 ${plant.inverters.length}대`} />}
@@ -88,7 +88,7 @@ export function DocReport({ result, onClose, autoPrint }: { result: GenSimResult
         {/* 월별 표 */}
         <section className="mt-8">
           <h2 className="mb-2 text-[14px] font-bold text-black">월별 예상 발전량</h2>
-          <table className="w-full border-collapse text-[12px]">
+          <table className="w-full border-collapse text-[13px]">
             <thead>
               <tr className="border-b-2 border-black text-black">
                 <th className="py-2 text-left font-semibold">월</th>
@@ -115,8 +115,8 @@ export function DocReport({ result, onClose, autoPrint }: { result: GenSimResult
 
         {/* 계산 기준 */}
         <section className="mt-8 rounded-lg bg-slate-50 p-4">
-          <h2 className="mb-2 text-[13px] font-bold text-black">계산 기준</h2>
-          <ul className="space-y-1 text-[11.5px] text-black">
+          <h2 className="mb-2 text-[14px] font-bold text-black">계산 기준</h2>
+          <ul className="space-y-1 text-[13px] text-black">
             <li>· 일사량 : NASA POWER 위성 관측 — {weatherYear}년 울산 지점 실측값</li>
             <li>· 발전량 : 설비 {num(capacityKw, 2)} kW × 일사량 × 일수 × 종합효율 {PR * 100}%</li>
             <li>· 종합효율(PR) {PR * 100}% : 인버터 손실·오염·온도 손실 포함 (태양광 업계 표준)</li>
@@ -124,7 +124,7 @@ export function DocReport({ result, onClose, autoPrint }: { result: GenSimResult
           </ul>
         </section>
 
-        <footer className="mt-6 border-t border-slate-200 pt-3 text-[10px] text-black">
+        <footer className="mt-6 border-t border-slate-200 pt-3 text-[12px] text-black">
           본 보고서는 예측 시뮬레이션 결과이며, 실제 발전량은 기상·설비 상태에 따라 달라질 수 있습니다.
         </footer>
       </div>
@@ -136,10 +136,10 @@ export function DocReport({ result, onClose, autoPrint }: { result: GenSimResult
 function SummaryBox({ label, value, unit, accent }: { label: string; value: string; unit?: string; accent?: boolean }) {
   return (
     <div className={`rounded-lg bg-white p-4 ${accent ? 'border-2 border-black' : 'border border-slate-300'}`}>
-      <div className="text-[11px] text-black">{label}</div>
+      <div className="text-[13px] text-black">{label}</div>
       <div className="mt-1 text-[20px] font-extrabold leading-tight text-black">
         {value}
-        {unit && <span className="ml-1 text-[11px] font-bold text-black">{unit}</span>}
+        {unit && <span className="ml-1 text-[13px] font-bold text-black">{unit}</span>}
       </div>
     </div>
   );

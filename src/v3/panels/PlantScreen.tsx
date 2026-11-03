@@ -27,12 +27,12 @@ function Dot({ ok }: { ok: boolean }) {
 function Tile({ label, value, unit, sub }: { label: string; value: string; unit?: string; sub?: string }) {
   return (
     <div className="rounded-lg bg-white/[0.04] px-3 py-2.5">
-      <div className="text-[12px] text-slate-400">{label}</div>
+      <div className="text-[13px] text-slate-300">{label}</div>
       <div className="mt-0.5 text-[17px] font-extrabold leading-tight text-white">
         {value}
-        {unit && <span className="ml-1 text-[12px] font-bold text-slate-400">{unit}</span>}
+        {unit && <span className="ml-1 text-[13px] font-bold text-slate-300">{unit}</span>}
       </div>
-      {sub && <div className="mt-0.5 text-[11.5px] text-slate-500">{sub}</div>}
+      {sub && <div className="mt-0.5 text-[13px] text-slate-300">{sub}</div>}
     </div>
   );
 }
@@ -66,7 +66,7 @@ function HourlyChart({ curve, capacityKw }: { curve: PlantReading['todayCurve'];
   return (
     <div className="relative">
       {/* 범례 — 색 칩으로만 */}
-      <div className="mb-1.5 flex items-center gap-4 text-[11.5px] font-bold text-slate-400">
+      <div className="mb-1.5 flex items-center gap-4 text-[13px] font-bold text-slate-300">
         <span className="flex items-center gap-1.5">
           <span className="inline-block h-3 w-3 rounded-[3px] bg-emerald-400/80" />실측
         </span>
@@ -79,22 +79,22 @@ function HourlyChart({ curve, capacityKw }: { curve: PlantReading['todayCurve'];
           className="pointer-events-none absolute top-0 z-10 -translate-x-1/2 whitespace-nowrap rounded-lg border border-white/15 bg-slate-900 px-2.5 py-1.5 text-center shadow-xl"
           style={{ left: `${(x(hover) / W) * 100}%` }}
         >
-          <div className="text-[12px] font-bold text-slate-300">{hover}시</div>
-          <div className="text-[12.5px] font-bold text-sky-300">예상 {fmt(expected[hover], 1)} kWh</div>
+          <div className="text-[13px] font-bold text-slate-300">{hover}시</div>
+          <div className="text-[13px] font-bold text-sky-300">예상 {fmt(expected[hover], 1)} kWh</div>
           {actual[hover] != null && (
-            <div className="text-[13px] font-extrabold text-emerald-300">실측 {fmt(actual[hover]!, 1)} kWh</div>
+            <div className="text-[14px] font-extrabold text-emerald-300">실측 {fmt(actual[hover]!, 1)} kWh</div>
           )}
         </div>
       )}
       <svg viewBox={`0 0 ${W} ${H}`} className="w-full" role="img" aria-label="시간별 출력">
         {/* 세로축 단위 — 눈금 숫자 위에 따로 */}
-        <text x={padL - 5} y={13} textAnchor="end" fill="#94a3b8" fontSize={10} fontWeight={700}>
+        <text x={padL - 5} y={13} textAnchor="end" fill="#cbd5e1" fontSize={12} fontWeight={700}>
           kWh
         </text>
         {[0, 0.5, 1].map((t) => (
           <g key={t}>
             <line x1={padL} x2={W - 10} y1={y(max * t)} y2={y(max * t)} stroke="rgba(255,255,255,.08)" />
-            <text x={padL - 5} y={y(max * t) + 3.5} textAnchor="end" fill="#64748b" fontSize={10.5}>
+            <text x={padL - 5} y={y(max * t) + 3.5} textAnchor="end" fill="#cbd5e1" fontSize={12}>
               {fmt(max * t)}
             </text>
           </g>
@@ -130,7 +130,7 @@ function HourlyChart({ curve, capacityKw }: { curve: PlantReading['todayCurve'];
         ))}
         {/* 축 라벨 — 4시간 간격 */}
         {[0, 4, 8, 12, 16, 20].map((h) => (
-          <text key={h} x={x(h)} y={H - 6} textAnchor="middle" fill="#64748b" fontSize={10.5}>
+          <text key={h} x={x(h)} y={H - 6} textAnchor="middle" fill="#cbd5e1" fontSize={12}>
             {h}시
           </text>
         ))}
@@ -158,7 +158,7 @@ export function PlantScreen({
     <>
       {/* 설비 상태 — 점 + 이름만. 누르면 그 신호에 이상이 왔을 때의 이벤트 팝업을 미리 본다(2026-08-31 사용자 확정) */}
       <Section title="설비 상태">
-        <div className="flex flex-wrap gap-x-1.5 gap-y-1.5 text-[13px] text-slate-300">
+        <div className="flex flex-wrap gap-x-1.5 gap-y-1.5 text-[14px] text-slate-300">
           {(
             [
               ['rtuPower', <>RTU 전원</>, d.rtuPower],
@@ -198,9 +198,9 @@ export function PlantScreen({
           시간당 금액은 뺐다 — "지금 출력이 1시간 유지되면"이라는 가정이지 데이터가 아니다.
           금일(dailyEnergy)·누적(totalEnergy)은 API 실제 필드라 근거가 있다 */}
       <Section title={`인버터 ${d.inverters.length}대`}>
-        <table className="w-full border-collapse text-[13px]">
+        <table className="w-full border-collapse text-[14px]">
           <thead>
-            <tr className="border-b border-white/10 text-[11.5px] text-slate-500">
+            <tr className="border-b border-white/10 text-[13px] text-slate-300">
               <th className="py-1.5 text-left font-semibold">인버터</th>
               <th className="py-1.5 text-right font-semibold">현재(AC) kW</th>
               <th className="py-1.5 text-right font-semibold">DC kW</th>
@@ -223,15 +223,15 @@ export function PlantScreen({
                       {/* 점 = 통신. 순간 출력에는 색을 칠하지 않는다 — 구름·새·지붕 방향으로 한 대만 낮은 건 정상일 수 있다 */}
                       <Dot ok={inv.comm && !down} />
                       {invLabel(inv.id)}
-                      <span className="ml-1 text-[11.5px] font-normal text-slate-500">{inv.ratedKw}kW</span>
+                      <span className="ml-1 text-[13px] font-normal text-slate-300">{inv.ratedKw}kW</span>
                       {/* 통신이 끊기면 '오류'(명세 정의), 살아 있으면 인버터가 보낸 상태값을 그대로 */}
                       {down ? (
-                        <span className="ml-1.5 rounded bg-red-500/15 px-1 py-px text-[10.5px] font-bold text-red-300">
+                        <span className="ml-1.5 rounded bg-red-500/15 px-1 py-px text-[12px] font-bold text-red-300">
                           오류
                         </span>
                       ) : (
                         inv.statusMsg && (
-                          <span className="ml-1.5 rounded bg-white/10 px-1 py-px text-[10.5px] font-bold text-slate-300">
+                          <span className="ml-1.5 rounded bg-white/10 px-1 py-px text-[12px] font-bold text-slate-300">
                             {inv.statusMsg}
                           </span>
                         )
@@ -257,7 +257,7 @@ export function PlantScreen({
         <button
           type="button"
           onClick={onRunGen}
-          className="w-full rounded-lg bg-blue-600/90 px-2 py-2.5 text-[13px] font-bold text-white transition-colors hover:bg-blue-600"
+          className="w-full rounded-lg bg-blue-600/90 px-2 py-2.5 text-[14px] font-bold text-white transition-colors hover:bg-blue-600"
         >
           발전량 시뮬레이션
         </button>

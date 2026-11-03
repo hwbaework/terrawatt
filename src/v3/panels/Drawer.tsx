@@ -38,23 +38,23 @@ export function Drawer({
                 type="button"
                 onClick={onBack}
                 title="돌아가기"
-                className="-ml-1 shrink-0 rotate-180 rounded-md p-0.5 text-slate-500 transition-colors hover:bg-white/10 hover:text-slate-200"
+                className="-ml-1 shrink-0 rotate-180 rounded-md p-0.5 text-slate-300 transition-colors hover:bg-white/10 hover:text-slate-200"
               >
                 <MIcon name="chevron_right" size={16} />
               </button>
             )}
             <h2 className="truncate text-[17px] font-extrabold text-white">{title}</h2>
             {badge && (
-              <span className="shrink-0 rounded bg-white/10 px-1.5 py-0.5 text-[11px] text-slate-400">{badge}</span>
+              <span className="shrink-0 rounded bg-white/10 px-1.5 py-0.5 text-[13px] text-slate-300">{badge}</span>
             )}
           </div>
-          {subtitle && <div className="mt-1.5 text-[12px] leading-relaxed text-slate-400">{subtitle}</div>}
+          {subtitle && <div className="mt-1.5 text-[13px] leading-relaxed text-slate-300">{subtitle}</div>}
         </div>
         <button
           type="button"
           onClick={onClose}
           title="닫기"
-          className="-mr-1 shrink-0 rounded-md p-1 text-slate-500 transition-colors hover:bg-white/10 hover:text-slate-200"
+          className="-mr-1 shrink-0 rounded-md p-1 text-slate-300 transition-colors hover:bg-white/10 hover:text-slate-200"
         >
           <MIcon name="close" size={17} />
         </button>
@@ -68,7 +68,7 @@ export function Drawer({
 export function Section({ title, children }: { title: string; children: ReactNode }) {
   return (
     <section className="border-t border-white/[0.07] px-5 py-4">
-      <h3 className="mb-2.5 text-[12px] font-bold tracking-wide text-slate-400">{title}</h3>
+      <h3 className="mb-2.5 text-[13px] font-bold tracking-wide text-slate-300">{title}</h3>
       {children}
     </section>
   );
@@ -81,7 +81,7 @@ export function ActionButton({ label, onClick }: { label: string; onClick: () =>
       <button
         type="button"
         onClick={onClick}
-        className="flex w-full items-center justify-between gap-2 rounded-lg bg-blue-600/90 px-3 py-2.5 text-[12px] font-bold text-white transition-colors hover:bg-blue-600"
+        className="flex w-full items-center justify-between gap-2 rounded-lg bg-blue-600/90 px-3 py-2.5 text-[13px] font-bold text-white transition-colors hover:bg-blue-600"
       >
         {label}
         <MIcon name="chevron_right" size={16} className="opacity-80" />
@@ -94,7 +94,7 @@ export function ActionButton({ label, onClick }: { label: string; onClick: () =>
 export function Row({ label, children }: { label: string; children: ReactNode }) {
   return (
     <div className="flex items-baseline justify-between gap-4 py-2">
-      <span className="shrink-0 text-[13px] text-slate-400">{label}</span>
+      <span className="shrink-0 text-[14px] text-slate-300">{label}</span>
       <span className="text-right text-[14px] font-bold text-slate-100">{children}</span>
     </div>
   );

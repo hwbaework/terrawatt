@@ -18,16 +18,16 @@ const num = (n: number, d = 0) => n.toLocaleString('ko-KR', { minimumFractionDig
 
 function NumRow({ label, value, unit, step, onChange }: { label: string; value: number; unit: string; step?: number; onChange: (v: number) => void }) {
   return (
-    <div className="grid grid-cols-[1fr_124px_44px] items-center gap-x-1.5 py-1">
-      <span className="min-w-0 text-[13px] leading-tight text-slate-300">{label}</span>
+    <div className="grid grid-cols-[1fr_124px_52px] items-center gap-x-1.5 py-1">
+      <span className="min-w-0 text-[14px] leading-tight text-slate-300">{label}</span>
       <input
         type="number"
         step={step ?? 1}
         value={value}
         onChange={(e) => onChange(Number(e.target.value))}
-        className="w-[124px] rounded-md border border-white/10 bg-slate-900/70 px-2 py-1 text-right text-[13px] font-bold text-white outline-none focus:border-sky-400/60"
+        className="w-[124px] rounded-md border border-white/10 bg-slate-900/70 px-2 py-1 text-right text-[14px] font-bold text-white outline-none focus:border-sky-400/60"
       />
-      <span className="text-[12px] leading-tight text-slate-400">{unit}</span>
+      <span className="text-[13px] leading-tight text-slate-300">{unit}</span>
     </div>
   );
 }
@@ -35,7 +35,7 @@ function NumRow({ label, value, unit, step, onChange }: { label: string; value: 
 function AutoRow({ label, children }: { label: string; children: ReactNode }) {
   return (
     <div className="flex items-baseline justify-between py-2">
-      <span className="text-[13px] text-slate-400">{label}</span>
+      <span className="text-[14px] text-slate-300">{label}</span>
       <span className="text-[14px] font-extrabold text-white">{children}</span>
     </div>
   );
@@ -93,8 +93,8 @@ export function PlantSimScreen({
                 key={pr.label}
                 type="button"
                 onClick={() => onPeriodMonths(pr.months)}
-                className={`rounded-md py-1.5 text-[12px] font-bold transition-colors ${
-                  on ? 'bg-blue-600 text-white' : 'bg-white/[0.06] text-slate-400 hover:bg-white/10'
+                className={`rounded-md py-1.5 text-[13px] font-bold transition-colors ${
+                  on ? 'bg-blue-600 text-white' : 'bg-white/[0.06] text-slate-300 hover:bg-white/10'
                 }`}
               >
                 {pr.label}
@@ -104,8 +104,8 @@ export function PlantSimScreen({
           <button
             type="button"
             onClick={() => onPeriodMonths(18)}
-            className={`rounded-md py-1.5 text-[12px] font-bold transition-colors ${
-              isCustom ? 'bg-blue-600 text-white' : 'bg-white/[0.06] text-slate-400 hover:bg-white/10'
+            className={`rounded-md py-1.5 text-[13px] font-bold transition-colors ${
+              isCustom ? 'bg-blue-600 text-white' : 'bg-white/[0.06] text-slate-300 hover:bg-white/10'
             }`}
           >
             직접
@@ -113,7 +113,7 @@ export function PlantSimScreen({
         </div>
         {isCustom && (
           <div className="mt-2 flex items-center justify-between">
-            <span className="text-[13px] text-slate-400">다음 달부터</span>
+            <span className="text-[14px] text-slate-300">다음 달부터</span>
             <div className="flex items-center gap-1.5">
               <input
                 type="number"
@@ -123,7 +123,7 @@ export function PlantSimScreen({
                 onChange={(e) => onPeriodMonths(Math.min(MAX_MONTHS, Math.max(1, Math.round(Number(e.target.value) || 1))))}
                 className="w-20 rounded-lg border border-white/10 bg-white/5 px-2 py-1.5 text-right text-[14px] font-bold text-white outline-none focus:border-sky-400/60"
               />
-              <span className="text-[12px] text-slate-500">개월 (최대 {MAX_MONTHS})</span>
+              <span className="text-[13px] text-slate-300">개월 (최대 {MAX_MONTHS})</span>
             </div>
           </div>
         )}
@@ -139,8 +139,8 @@ export function PlantSimScreen({
       <Section title="자가소비">
         <div className="space-y-2.5 pt-1">
           <div className="rounded-lg border border-white/10 bg-white/[0.03] px-3 py-2.5">
-            <span className="text-[12px] font-bold text-slate-400">적용 단가 (자가소비)</span>
-            <div className="mt-1.5 flex flex-wrap gap-x-3 gap-y-0.5 text-[13px] text-slate-200">
+            <span className="text-[13px] font-bold text-slate-300">적용 단가 (자가소비)</span>
+            <div className="mt-1.5 flex flex-wrap gap-x-3 gap-y-0.5 text-[14px] text-slate-200">
               <span>기본요금 <b className="text-white">{num(SELF_TARIFF.basicKrwKw)}</b> 원/kW</span>
               <span>전력량 <b className="text-white">{num(SELF_TARIFF.energyKrwKwh, 1)}</b> 원/kWh</span>
             </div>
@@ -156,7 +156,7 @@ export function PlantSimScreen({
         <button
           type="button"
           onClick={onRun}
-          className="flex w-full items-center justify-center gap-1.5 rounded-lg bg-blue-600 py-2.5 text-[13px] font-bold text-white transition-colors hover:bg-blue-500"
+          className="flex w-full items-center justify-center gap-1.5 rounded-lg bg-blue-600 py-2.5 text-[14px] font-bold text-white transition-colors hover:bg-blue-500"
         >
           <MIcon name="bolt" size={16} />
           시뮬레이션 실행 — {num(capacityKw, 2)} kW

@@ -79,7 +79,7 @@ export function TrendChart<T extends TrendPoint>({
         {[hi, lo].map((t, i) => (
           <g key={i}>
             <line x1={L} x2={W - 6} y1={Y(t)} y2={Y(t)} stroke="rgba(255,255,255,.08)" />
-            <text x={L - 5} y={Y(t) + 4} textAnchor="end" fontSize="11" fill="#cbd5e1">
+            <text x={L - 5} y={Y(t) + 4} textAnchor="end" fontSize="12" fill="#cbd5e1">
               {num(t)}
             </text>
           </g>
@@ -94,24 +94,24 @@ export function TrendChart<T extends TrendPoint>({
             <circle cx={X(h.m)} cy={Y(h.p.v)} r="3" fill="#e2e8f0" />
           </g>
         )}
-        <text x={L} y={H - 4} fontSize="11" fill="#cbd5e1">
+        <text x={L} y={H - 4} fontSize="12" fill="#cbd5e1">
           {hours}시간 전
         </text>
         {unit && (
-          <text x={(L + W) / 2} y={H - 4} textAnchor="middle" fontSize="11" fill="#cbd5e1">
+          <text x={(L + W) / 2} y={H - 4} textAnchor="middle" fontSize="12" fill="#cbd5e1">
             {unit}
           </text>
         )}
-        <text x={W - 6} y={H - 4} textAnchor="end" fontSize="11" fill="#cbd5e1">
+        <text x={W - 6} y={H - 4} textAnchor="end" fontSize="12" fill="#cbd5e1">
           현재
         </text>
       </svg>
       {h && (
         <div
-          className="pointer-events-none absolute top-0 z-10 -translate-x-1/2 whitespace-nowrap rounded-md bg-slate-900 px-2 py-1 text-[11.5px] text-slate-200 ring-1 ring-white/10"
+          className="pointer-events-none absolute top-0 z-10 -translate-x-1/2 whitespace-nowrap rounded-md bg-slate-900 px-2 py-1 text-[13px] text-slate-200 ring-1 ring-white/10"
           style={{ left: `${Math.min(85, Math.max(15, (X(h.m) / W) * 100))}%` }}
         >
-          <span className="mr-1.5 text-slate-400">{h.p.at.slice(11, 16)}</span>
+          <span className="mr-1.5 text-slate-300">{h.p.at.slice(11, 16)}</span>
           {tip ? tip(h.p) : num(h.p.v)}
         </div>
       )}

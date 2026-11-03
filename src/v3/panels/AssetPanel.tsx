@@ -13,10 +13,10 @@ import { MIcon } from '../../v2/lib/MIcon';
 function ExpectedTile({ label, unit }: { label: string; unit?: string }) {
   return (
     <div className="rounded-lg border border-dashed border-white/15 bg-white/[0.03] px-3 py-2.5">
-      <div className="text-[12px] text-slate-400">{label}</div>
-      <div className="mt-0.5 text-[13px] font-extrabold leading-tight text-slate-600">
-        — <span className="text-[11px] font-bold">연동 후</span>
-        {unit && <span className="ml-1 text-[12px] font-bold text-slate-700">{unit}</span>}
+      <div className="text-[13px] text-slate-300">{label}</div>
+      <div className="mt-0.5 text-[14px] font-extrabold leading-tight text-slate-300">
+        — <span className="text-[13px] font-bold">연동 후</span>
+        {unit && <span className="ml-1 text-[13px] font-bold text-slate-300">{unit}</span>}
       </div>
     </div>
   );
@@ -33,17 +33,17 @@ export function AssetPanel({ assetId, onClose }: { assetId: string; onClose: () 
       onClose={onClose}
       subtitle={
         <span className="flex flex-wrap items-center gap-1.5">
-          <span className="rounded bg-amber-400/15 px-1.5 py-0.5 text-[12px] font-bold text-amber-300">
+          <span className="rounded bg-amber-400/15 px-1.5 py-0.5 text-[13px] font-bold text-amber-300">
             예상 화면 (임시)
           </span>
-          <span className="text-slate-500">완공·데이터 연동 전 — 엑셀 DT정리v0.2 기준</span>
+          <span className="text-slate-300">완공·데이터 연동 전 — 엑셀 DT정리v0.2 기준</span>
         </span>
       }
     >
       {/* 위치가 대략/미확정임을 패널에서도 분명히 */}
       <div className="mx-5 mb-1 flex items-start gap-1.5 rounded-lg bg-white/[0.04] px-3 py-2">
-        <MIcon name="location_on" size={13} className="mt-0.5 shrink-0 text-slate-500" />
-        <span className="text-[12px] leading-relaxed text-slate-400">{a.locationNote}</span>
+        <MIcon name="location_on" size={13} className="mt-0.5 shrink-0 text-slate-300" />
+        <span className="text-[13px] leading-relaxed text-slate-300">{a.locationNote}</span>
       </div>
 
       <Section title="시설 정보">
@@ -71,7 +71,7 @@ export function AssetPanel({ assetId, onClose }: { assetId: string; onClose: () 
       ))}
 
       <Section title="데이터 경로 · 협의">
-        <p className="text-[13px] leading-relaxed text-slate-400">{a.dataNote}</p>
+        <p className="text-[14px] leading-relaxed text-slate-300">{a.dataNote}</p>
       </Section>
     </Drawer>
   );
@@ -119,10 +119,10 @@ export function AssetDtStub({
       onClose={onClose}
       subtitle={
         <span className="flex flex-wrap items-center gap-1.5">
-          <span className="rounded bg-amber-400/15 px-1.5 py-0.5 text-[12px] font-bold text-amber-300">
+          <span className="rounded bg-amber-400/15 px-1.5 py-0.5 text-[13px] font-bold text-amber-300">
             예상 화면 (임시)
           </span>
-          <span className="text-slate-500">완공·데이터 연동 후 실제 화면으로 전환</span>
+          <span className="text-slate-300">완공·데이터 연동 후 실제 화면으로 전환</span>
         </span>
       }
     >
@@ -156,14 +156,14 @@ export function AssetDtStub({
         ))
       ) : (
         <Section title="예상 표출">
-          <p className="text-[13px] leading-relaxed text-slate-400">
+          <p className="text-[14px] leading-relaxed text-slate-300">
             이 자산은 계획서(3.데이터목록)에 이 화면용 별도 항목이 없습니다 — 수집 범위 협의 후 확정.
           </p>
         </Section>
       )}
 
       <Section title="데이터 경로 · 협의">
-        <p className="text-[13px] leading-relaxed text-slate-400">{a.dataNote}</p>
+        <p className="text-[14px] leading-relaxed text-slate-300">{a.dataNote}</p>
       </Section>
     </Drawer>
   );
