@@ -270,7 +270,7 @@ export function BizResultView({
         {/* 그래프 2장 */}
         <div className="mt-5 grid grid-cols-2 gap-4">
           <Card title={monthCardTitle}>
-            <BarChart values={mValues} labels={mLabels} />
+            <BarChart values={mValues} labels={mLabels} showValues={!!periodMonths} />
           </Card>
           <Card title={`${r.years}년 누적 ${moneyWord}`}>
             {r.totalKrw == null ? (
@@ -364,8 +364,8 @@ function Card({ title, desc, children, className = '' }: { title: string; desc?:
     </div>
   );
 }
-/** 막대 그래프 — 월별 예측. 달에 마우스를 올리면 그 달 예측값(kWh)이 뜬다 */
-function BarChart({ values, labels }: { values: number[]; labels: string[] }) {
+/** 막대 그래프 — 월별 예측. 달에 마우스를 올리면 그 달 예측값(kWh)이 뜬다. showValues = 막대 위 숫자(올해는 안 보임, 2026-11-03 사용자) */
+function BarChart({ values, labels, showValues }: { values: number[]; labels: string[]; showValues: boolean }) {
   const [hover, setHover] = useState<number | null>(null);
   const W = 560;
   const H = 200;
@@ -410,7 +410,7 @@ function BarChart({ values, labels }: { values: number[]; labels: string[] }) {
             <g key={i}>
               <rect x={x0 + bw * 0.2} y={y(v)} width={bw * 0.6} height={H - padB - y(v)} rx={3} fill={on ? '#3b82f6' : '#60a5fa'} />
               {/* 값·축 라벨은 막대가 많으면 겹쳐서 솎는다(값은 12개까지, 축은 14개 넘으면 격월) — 정확한 값은 툴팁 */}
-              {values.length <= 12 && (
+              {showValues && values.length <= 12 && (
                 <text x={x0 + bw * 0.5} y={y(v) - 5} textAnchor="middle" fill="#334155" fontSize={12} fontWeight={700}>
                   {num(v / 1000, 1)}k
                 </text>
