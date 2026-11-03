@@ -41,7 +41,7 @@ function AutoRow({ label, children }: { label: string; children: ReactNode }) {
   );
 }
 
-/** 월별 차트의 기간 선택지 — 월 단위만(2026-08-24 사용자 확정). null = 올해(1~12월, 실측 비교 포함).
+/** 월별 차트의 기간 선택지 — 월 단위만(2026-08-24 사용자 확정). null = 올해(1~12월).
     프리셋 밖 개월수는 [직접]으로 입력 — 상한 24개월(예측이 멀수록 1차년 분포 재사용의 근거가 약해져서) */
 const PERIODS: { label: string; months: number | null }[] = [
   { label: '올해', months: null },
@@ -62,7 +62,7 @@ export function PlantSimScreen({
 }: {
   assumption: PvAssumption;
   project: PvProject;
-  /** null = 올해(실측 비교) / n = 다음 달부터 n개월 예측 */
+  /** null = 올해 / n = 다음 달부터 n개월 */
   periodMonths: number | null;
   onAssumption: (a: PvAssumption) => void;
   onProject: (p: PvProject) => void;
@@ -82,7 +82,7 @@ export function PlantSimScreen({
         </div>
       </Section>
 
-      {/* 기간 — 올해(실측 비교) 또는 다음 달부터 n개월 예측. 결과의 월별 차트가 이 범위로 바뀐다.
+      {/* 기간 — 올해 또는 다음 달부터 n개월 예측. 결과의 월별 차트가 이 범위로 바뀐다.
           [직접] = 프리셋 밖 개월수 입력(1~24) */}
       <Section title="기간">
         <div className="grid grid-cols-5 gap-1.5">

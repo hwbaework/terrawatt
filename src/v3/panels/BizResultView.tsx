@@ -138,7 +138,6 @@ export function BizResultView({
   building,
   tick,
   onClose,
-  actualMonthlyKwh,
   actualYearlyMwh,
   periodMonths,
 }: {
@@ -148,11 +147,9 @@ export function BizResultView({
   /** 창 내리기 — 결과는 결과함(BizDock)에 남는다 */
   onClose: () => void;
   /** [문서로 보기] 버튼 — 한일튜브 대상일 때만(문서가 한일튜브 사양으로 짜여 있어서) */
-  /** 월별 실측 발전량(올해, kWh 12개 — 아직 안 온 달은 null) — 예측 막대 위에 실측 점·선을 겹친다(기존 설비만) */
-  actualMonthlyKwh?: (number | null)[];
   /** 연차별 실측 발전량(MWh, 지나간 해만 — 나머지 null) — 연차 표에 실측 열이 생긴다(기존 설비만) */
   actualYearlyMwh?: (number | null)[];
-  /** 월별 차트 기간(2026-08-24 복원, 월 단위만): null = 올해 1~12월(실측 비교) / n = 다음 달부터 n개월 예측 */
+  /** 월별 차트 기간(2026-08-24 복원, 월 단위만): null = 올해 1~12월 / n = 다음 달부터 n개월. 어느 쪽이든 예측만(2026-11-03 사용자) */
   periodMonths?: number | null;
 }) {
   const b = building;
@@ -180,12 +177,11 @@ export function BizResultView({
   );
 
   /* 월별 차트 데이터 — 기간(월 단위, 2026-08-24 복원)에 따라:
-       올해(null) = 1~12월 + 실측 오버레이 / n개월 = 다음 달부터 n개월 예측(미래라 실측 없음).
+       올해(null) = 1~12월 / n개월 = 다음 달부터 n개월. 월별은 예측만 — 올해를 골라도 실측이 없는 달이 있을 수 있다(2026-11-03 사용자).
        예측값 = 그 달의 1차년 월별 발전량(계절 분포 그대로 — 24개월 이내라 효율감소 0.5%/yr 영향은 무시 수준) */
   const nowDate = new Date();
   let mValues = r.monthlyKwh;
   let mLabels = Array.from({ length: 12 }, (_, i) => `${i + 1}월`);
-  let mActual = actualMonthlyKwh;
   let monthCardTitle = '월별 예상 발전량';
   if (periodMonths) {
     const startM = nowDate.getMonth() + 1; // 다음 달 (0-based 인덱스)
@@ -195,7 +191,6 @@ export function BizResultView({
       const yr = nowDate.getFullYear() + Math.floor((startM + k) / 12);
       return cal === 0 || k === 0 ? `'${String(yr).slice(2)}.${cal + 1}월` : `${cal + 1}월`;
     });
-    mActual = undefined;
     const endIdx = startM + periodMonths - 1;
     monthCardTitle = `월별 예상 발전량 (${nowDate.getFullYear() + Math.floor(startM / 12)}.${(startM % 12) + 1} ~ ${
       nowDate.getFullYear() + Math.floor(endIdx / 12)
@@ -275,7 +270,7 @@ export function BizResultView({
         {/* 그래프 2장 */}
         <div className="mt-5 grid grid-cols-2 gap-4">
           <Card title={monthCardTitle}>
-            <BarChart values={mValues} actual={mActual} labels={mLabels} />
+            <BarChart values={mValues} labels={mLabels} />
           </Card>
           <Card title={`${r.years}년 누적 ${moneyWord}`}>
             {r.totalKrw == null ? (
@@ -369,9 +364,8 @@ function Card({ title, desc, children, className = '' }: { title: string; desc?:
     </div>
   );
 }
-/** 막대 그래프 — 막대 = 예측, 진한 점·선 = 실측(올해, 이미 지난 달까지만 — null 인 달은 안 찍는다).
-    차이는 글이 아니라 **툴팁**으로 — 달에 마우스를 올리면 예측·실측·차이(kWh, %)가 뜬다(2026-08-24 사용자 확정) */
-function BarChart({ values, labels, actual }: { values: number[]; labels: string[]; actual?: (number | null)[] }) {
+/** 막대 그래프 — 월별 예측. 달에 마우스를 올리면 그 달 예측값(kWh)이 뜬다 */
+function BarChart({ values, labels }: { values: number[]; labels: string[] }) {
   const [hover, setHover] = useState<number | null>(null);
   const W = 560;
   const H = 200;
@@ -379,28 +373,15 @@ function BarChart({ values, labels, actual }: { values: number[]; labels: string
   const padR = 8;
   const padB = 22;
   const padT = 18;
-  const actualNums = (actual ?? []).filter((v): v is number => v != null);
-  const max = Math.max(1, ...values, ...actualNums);
+  const max = Math.max(1, ...values);
   const bw = (W - padL - padR) / values.length;
   const y = (v: number) => H - padB - ((H - padB - padT) * v) / max;
   const cx = (i: number) => padL + i * bw + bw * 0.5;
   const ticks = 4;
   const hv = hover != null ? values[hover] : null;
-  const ha = hover != null && actual ? actual[hover] : null;
   return (
     <div className="relative">
-      {/* 범례 — 색 칩으로만 */}
-      {actual && (
-        <div className="mb-1.5 flex items-center gap-4 text-[13px] font-bold text-slate-600">
-          <span className="flex items-center gap-1.5">
-            <span className="inline-block h-3 w-3 rounded-sm bg-[#60a5fa]" />예측
-          </span>
-          <span className="flex items-center gap-1.5">
-            <span className="inline-block h-3 w-3 rounded-full bg-[#1d4ed8]" />실측 (올해)
-          </span>
-        </div>
-      )}
-      {/* 툴팁 — 그 달의 예측·실측·차이를 단위와 함께 */}
+      {/* 툴팁 — 그 달의 예측값 */}
       {hover != null && hv != null && (
         <div
           className="pointer-events-none absolute top-2 z-10 -translate-x-1/2 whitespace-nowrap rounded-lg border border-slate-200 bg-white px-3 py-2 text-center shadow-xl"
@@ -408,14 +389,6 @@ function BarChart({ values, labels, actual }: { values: number[]; labels: string
         >
           <div className="text-[13px] font-bold text-slate-600">{labels[hover]}</div>
           <div className="text-[14px] font-extrabold text-blue-500">예측 {num(hv)} kWh</div>
-          {ha != null && (
-            <>
-              <div className="text-[14px] font-extrabold text-blue-800">실측 {num(ha)} kWh</div>
-              <div className={`text-[13px] font-bold ${ha - hv >= 0 ? 'text-emerald-600' : 'text-red-500'}`}>
-                차이 {ha - hv >= 0 ? '+' : ''}{num(ha - hv)} kWh ({ha - hv >= 0 ? '+' : ''}{num(((ha - hv) / Math.max(1, hv)) * 100, 1)}%)
-              </div>
-            </>
-          )}
         </div>
       )}
       <svg viewBox={`0 0 ${W} ${H}`} className="h-[200px] w-full">
@@ -437,7 +410,7 @@ function BarChart({ values, labels, actual }: { values: number[]; labels: string
             <g key={i}>
               <rect x={x0 + bw * 0.2} y={y(v)} width={bw * 0.6} height={H - padB - y(v)} rx={3} fill={on ? '#3b82f6' : '#60a5fa'} />
               {/* 값·축 라벨은 막대가 많으면 겹쳐서 솎는다(값은 12개까지, 축은 14개 넘으면 격월) — 정확한 값은 툴팁 */}
-              {!actual && values.length <= 12 && (
+              {values.length <= 12 && (
                 <text x={x0 + bw * 0.5} y={y(v) - 5} textAnchor="middle" fill="#334155" fontSize={12} fontWeight={700}>
                   {num(v / 1000, 1)}k
                 </text>
@@ -450,25 +423,6 @@ function BarChart({ values, labels, actual }: { values: number[]; labels: string
             </g>
           );
         })}
-        {/* 실측(올해) — 진한 점·선 오버레이. 아직 안 온 달(null)은 점을 안 찍고 선도 거기서 끊는다 */}
-        {actual && (
-          <>
-            <path
-              d={actual
-                .map((v, i) => (v == null ? '' : `${i === 0 || actual[i - 1] == null ? 'M' : 'L'}${cx(i).toFixed(1)},${y(v).toFixed(1)}`))
-                .filter(Boolean)
-                .join(' ')}
-              stroke="#1d4ed8"
-              strokeWidth={2}
-              fill="none"
-            />
-            {actual.map((v, i) =>
-              v == null ? null : (
-                <circle key={`a${i}`} cx={cx(i)} cy={y(v)} r={hover === i ? 4.5 : 3} fill="#1d4ed8" stroke="#fff" strokeWidth={1.2} />
-              ),
-            )}
-          </>
-        )}
         {/* 마우스 판 — 달마다 세로 띠 */}
         {values.map((_, i) => (
           <rect

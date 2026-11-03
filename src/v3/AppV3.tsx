@@ -19,7 +19,7 @@ import { FireScreen } from './panels/FireScreen';
 import { QuakeScreen } from './panels/QuakeScreen';
 import { DEFAULT_PV_ASSUMPTION, defaultProject, planPv, M2_PER_KW, type PvAssumption, type PvProject } from './lib/pvPlan';
 import { PLANT_SPECS } from './data/specs';
-import { FACILITY_MONTH_ACTUAL_KWH, FACILITY_YEAR_ACTUAL_MWH, OTHER_PLANT_DEMO, PLANT_DEMO } from './data/demoReadings';
+import { FACILITY_YEAR_ACTUAL_MWH, OTHER_PLANT_DEMO, PLANT_DEMO } from './data/demoReadings';
 import type { SketchBuilding } from './map/buildSketch';
 import { ACTIVE_SCREENS } from './data/dtScreens';
 import { PLANNED_ASSETS } from './data/plannedAssets';
@@ -81,7 +81,7 @@ export default function AppV3() {
      설치용량은 실측(PLANT_SPECS, 429.44kW) 고정 — 면적을 용량×12로 역산해 planPv 에 태우면 capacityKw 가 그 값 그대로 나온다 */
   const [hanilAssumption, setHanilAssumption] = useState<PvAssumption>(DEFAULT_PV_ASSUMPTION);
   const [hanilProject, setHanilProject] = useState<PvProject>(() => defaultProject());
-  /** null = 올해(실측 비교) / n = 다음 달부터 n개월 예측 — 월별 차트의 범위 */
+  /** null = 올해 / n = 다음 달부터 n개월 — 월별 예측 차트의 범위 */
   const [hanilMonths, setHanilMonths] = useState<number | null>(null);
   /* 시간별 출력 그래프 팝업(DtViewPopup)은 제거(2026-09-07 사용자 확정) — 콜아웃과 함께 부가 기능 정리 */
   const [hanilOpen, setHanilOpen] = useState(false);
@@ -479,14 +479,13 @@ export default function AppV3() {
         <BizDock buildings={bizBuildings} openId={bizOpen} onOpen={(id) => { setBizOpen(id); if (panel?.kind !== 'build') setPanel({ kind: 'build' }); }} tick={bizTick} />
       )}
       {bizBuilding && <BizResultView key={bizBuilding.id} building={bizBuilding} tick={bizTick} onClose={() => setBizOpen(null)} />}
-      {/* 발전량 시뮬 결과 — 한일튜브 실측 설비를 같은 엔진(runBiz)에 태운 사업성 검토. 문서로 보기·실측 오버레이 포함 */}
+      {/* 발전량 시뮬 결과 — 한일튜브 실측 설비를 같은 엔진(runBiz)에 태운 사업성 검토. 문서로 보기 포함 */}
       {hanilOpen && (
         <BizResultView
           key="hanil-sim"
           building={hanilBuilding}
           tick={hanilTick}
           onClose={() => setHanilOpen(false)}
-          actualMonthlyKwh={FACILITY_MONTH_ACTUAL_KWH}
           actualYearlyMwh={FACILITY_YEAR_ACTUAL_MWH}
           periodMonths={hanilMonths}
         />
