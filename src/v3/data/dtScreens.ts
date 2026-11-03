@@ -194,6 +194,7 @@ export const DT_SCREENS: DtScreen[] = [
       {
         /* 잔여수명·정비 이상 시기 예측은 뺐다(2026-08-26) — API 명세에 소스가 없어 사용할 수 없는 데이터.
            Health Index 추세로 파생 가능해지면 그때 되살린다 */
+        /* 등급(API-006 riskLevel)은 0~100 점수 쪽이라 안전으로(2026-10-29 사용자 — 울산 플랫폼 기준) */
         title: '설비 상태',
         items: [
           { label: '건전성 지수 (Health Index)', source: 'DX API-003 health', period: '1시간', status: 'waiting', note: 'peak/mean/area 통계' },
@@ -226,6 +227,7 @@ export const DT_SCREENS: DtScreen[] = [
         title: '전기안전지수 (DX)',
         items: [
           { label: '전기안전지수', source: 'DX API-006 safetyIndex', period: '5분', status: 'waiting', note: '0~100' },
+          { label: '등급', source: 'DX API-006 riskLevel', period: '5분', status: 'waiting', note: '5단계 danger/warning/caution/watch/normal (연계 v1.1)' },
           { label: '항목별 위험점수', source: 'DX API-006 risks', period: '5분', status: 'waiting', note: '전류·전압·누설·고조파·온도·역률·아크, 0~100 정수' },
           { label: '아크 지수', source: '아이티공간 아크 지수(문서 6.4)', status: 'waiting', note: '시범 산출 중 · 판정 보류' },
         ],

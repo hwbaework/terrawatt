@@ -1,21 +1,42 @@
 import type { ReactNode } from 'react';
 
 /* 예지보전 · 안전이 같이 쓰는 점수 화면 부품 — 글자 크기 · 칸 모양을 여기 한 곳에서 정한다(2026-11-03 사용자: 두 화면을 통일).
-   두 화면 모두 점수(0~100)만 보인다. 정상 · 관찰 같은 등급 표시는 넣지 않는다. */
+   점수(0~100)는 두 화면 공통이고, 등급 같은 추가 표시는 badge · labelExtra 로 안전 화면만 넣는다. */
 
 const NONE = '-';
 
 /** 맨 위 전체 점수 */
-export function ScoreSummary({ label, value, notes }: { label: string; value: string | null; notes: string[] }) {
+export function ScoreSummary({
+  label,
+  labelExtra,
+  value,
+  badge,
+  notes,
+  children,
+}: {
+  label: string;
+  labelExtra?: ReactNode;
+  value: string | null;
+  badge?: ReactNode;
+  notes: string[];
+  children?: ReactNode;
+}) {
   return (
     <div className="py-2">
-      <div className="flex items-baseline justify-between gap-2">
-        <span className="text-[14px] font-semibold text-slate-200">{label}</span>
-        <span className={`text-[20px] font-extrabold ${value ? 'text-white' : 'text-slate-300'}`}>
-          {value ?? NONE}
-          {value && <span className="ml-1 text-[14px] font-bold text-slate-300">/ 100</span>}
+      <div className="flex items-center justify-between gap-2">
+        <span className="flex items-center gap-2 text-[14px] font-semibold text-slate-200">
+          {label}
+          {labelExtra}
+        </span>
+        <span className="flex items-center gap-2">
+          <span className={`text-[20px] font-extrabold ${value ? 'text-white' : 'text-slate-300'}`}>
+            {value ?? NONE}
+            {value && <span className="ml-1 text-[14px] font-bold text-slate-300">/ 100</span>}
+          </span>
+          {badge}
         </span>
       </div>
+      {children}
       {notes.map((n, i) => (
         <p key={n} className={`${i === 0 ? 'mt-1 ' : ''}text-[14px] text-slate-300`}>
           {n}
@@ -32,6 +53,7 @@ export function InverterRow({
   dot,
   score,
   status,
+  badge,
   open,
   onToggle,
   children,
@@ -39,7 +61,9 @@ export function InverterRow({
   name: string;
   dot: 'on' | 'stop' | 'none';
   score: string | null;
-  status?: string | null;
+  status?: ReactNode;
+  /** 점수 옆 표시(안전의 등급) */
+  badge?: ReactNode;
   open: boolean;
   onToggle: () => void;
   children: ReactNode;
@@ -56,13 +80,16 @@ export function InverterRow({
           <span className={`mr-1.5 inline-block h-[7px] w-[7px] shrink-0 rounded-full ${dotCls}`} />
           {name}
         </span>
-        <span className="flex items-baseline gap-1">
+        <span className="flex items-center gap-2">
           {status ? (
             <span className="text-[14px] font-bold text-slate-300">{status}</span>
           ) : (
             <>
-              <span className={`text-[17px] font-extrabold ${score ? 'text-white' : 'text-slate-300'}`}>{score ?? NONE}</span>
-              {score && <span className="text-[14px] font-bold text-slate-300">점</span>}
+              <span className="flex items-baseline gap-1">
+                <span className={`text-[17px] font-extrabold ${score ? 'text-white' : 'text-slate-300'}`}>{score ?? NONE}</span>
+                {score && <span className="text-[14px] font-bold text-slate-300">점</span>}
+              </span>
+              {badge}
             </>
           )}
         </span>

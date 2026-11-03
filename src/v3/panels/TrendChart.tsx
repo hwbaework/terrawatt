@@ -3,7 +3,7 @@ import { minutesSince } from '../data/umeiDx';
 
 /* 센서 추이 — 최근 hours 시간, 가로축 왼쪽 'n시간 전' · 오른쪽 '현재'.
    점과 점 사이가 10분 넘게 비면 선을 끊는다(수집이 끊긴 구간을 이어 그리지 않는다).
-   올리면 가장 가까운 점의 시각 · 값(tip) */
+   marks = 등급이 바뀐 시각 같은 점 표시(글자 없이 색만). 올리면 가장 가까운 점의 시각 · 값(tip) */
 
 export interface TrendPoint {
   /** 'YYYY-MM-DD HH:MM:SS'(KST) */
@@ -17,6 +17,7 @@ export function TrendChart<T extends TrendPoint>({
   min,
   max,
   unit,
+  marks = [],
   label,
   tip,
 }: {
@@ -26,6 +27,7 @@ export function TrendChart<T extends TrendPoint>({
   min?: number;
   max?: number;
   unit?: string;
+  marks?: (TrendPoint & { color: string })[];
   label: string;
   /** 올렸을 때 보일 내용 — 비우면 시각 · 값 */
   tip?: (p: T) => ReactNode;
@@ -83,6 +85,9 @@ export function TrendChart<T extends TrendPoint>({
           </g>
         ))}
         <path d={path} fill="none" stroke="#e2e8f0" strokeWidth="1.5" />
+        {marks.map((p, i) => (
+          <circle key={i} cx={X(minutesSince(p.at) ?? 0)} cy={Y(p.v)} r="4" fill={p.color} stroke="#0b1220" strokeWidth="1.2" />
+        ))}
         {h && (
           <g>
             <line x1={X(h.m)} x2={X(h.m)} y1={8} y2={H - 20} stroke="rgba(255,255,255,.25)" strokeDasharray="2 2" />

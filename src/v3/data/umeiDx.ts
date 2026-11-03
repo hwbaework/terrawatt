@@ -87,6 +87,16 @@ export interface DxSafety {
 }
 
 /* ── 표시 규칙 ── */
+/** 등급 5단계(문서 5.4) — 이름만 그대로 */
+export const RISK_LEVEL_LABEL: Record<RiskLevel, string> = {
+  danger: '위험',
+  warning: '경고',
+  caution: '주의',
+  watch: '관찰',
+  normal: '정상',
+};
+/** 나쁜 순서 — 요약은 센서 중 가장 나쁜 값(문서 7장) */
+export const RISK_ORDER: RiskLevel[] = ['danger', 'warning', 'caution', 'watch', 'normal'];
 /** 화면에 보여 줄 위험 항목 — communication 은 참고용이라 뺀다 */
 export const RISK_ITEMS: { key: RiskKey; label: string }[] = [
   { key: 'current', label: '전류' },
