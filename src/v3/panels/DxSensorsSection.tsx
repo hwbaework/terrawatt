@@ -19,7 +19,7 @@ import { Section } from './Drawer';
 /* 예지보전 — DX 센서가 잰 값(아이티공간 연계 v1.1 API-003 · 005). 울산 플랫폼 예지보전과 같은 기준(2026-10-29 사용자):
    · 설비 상태 = Health Index(직전 1시간, 등급 없이 숫자만). 발전량 예측은 뺐다(2026-10-29 사용자 — 발전량 그래프가 앞 화면에 있다)
    · UMEI 응답이 없으면 데모 값(umeiDxDemo.ts)으로 채운다 — POC 라 값이 있어야 한다
-   · 인버터별 현황 — 줄 = 현재 유효전력, 누르면 측정값(Health · 전류 · 전압 · 역률 · 주파수 · 누설전류 · 고조파 · 온도) + 5분 추이
+   · 인버터별 현황 — 줄 = Health 점수(2026-11-03 사용자: 설비 상태는 kW 가 아니라 점수), 누르면 측정값(Health · 전류 · 전압 · 역률 · 주파수 · 누설전류 · 고조파 · 온도) + 5분 추이
    · 전기안전지수 · 등급 · 항목별 위험점수(0~100 점수)는 안전에 있다 — 여기 넣지 않는다
    · 센서는 인버터마다 하나라 이름은 '인버터 #1', 번호 순
    · 수신이 5분 넘게 멈추면 '수집 중단' — 마지막 값을 현재처럼 보이지 않는다(문서 8-4) */
@@ -32,9 +32,9 @@ const rst = (v: number | number[] | null, d = 1) =>
 
 function Line({ label, value, unit }: { label: string; value: string | null; unit?: string }) {
   return (
-    <div className="flex justify-between">
-      <dt className="text-slate-500">{label}</dt>
-      <dd className={`font-bold ${value ? 'text-slate-100' : 'text-slate-500'}`}>
+    <div className="flex justify-between gap-3">
+      <dt className="text-slate-300">{label}</dt>
+      <dd className={`font-bold ${value ? 'text-white' : 'text-slate-400'}`}>
         {value ?? NONE}
         {value && unit ? ` ${unit}` : ''}
       </dd>
@@ -110,13 +110,13 @@ export function DxSensorsSection({ plantCode }: { plantCode?: number }) {
         <div className="py-2">
           <div className="flex items-baseline justify-between">
             <span className="text-[13px] font-semibold text-slate-200">설비 상태 (Health Index)</span>
-            <span className={`text-[18px] font-extrabold ${low ? 'text-slate-100' : 'text-slate-500'}`}>
+            <span className={`text-[20px] font-extrabold ${low ? 'text-white' : 'text-slate-400'}`}>
               {fx(low?.v) ?? NONE}
-              {low && <span className="ml-1 text-[12px] font-bold text-slate-500">/ 100</span>}
+              {low && <span className="ml-1 text-[13px] font-bold text-slate-300">/ 100</span>}
             </span>
           </div>
-          <p className="mt-1 text-[12px] text-slate-500">설비 상태 점수 0~100, 높을수록 양호</p>
-          <p className="text-[12px] text-slate-500">1시간 갱신{low ? ` · ${hhmm(low.w.windowStartedAt)}~${hhmm(low.w.windowEndedAt)}` : ''}</p>
+          <p className="mt-1 text-[13px] text-slate-300">설비 상태 점수 0~100, 높을수록 양호</p>
+          <p className="text-[13px] text-slate-300">1시간 갱신{low ? ` · ${hhmm(low.w.windowStartedAt)}~${hhmm(low.w.windowEndedAt)}` : ''}</p>
         </div>
       </Section>
 
@@ -127,6 +127,7 @@ export function DxSensorsSection({ plantCode }: { plantCode?: number }) {
             const isOpen = open === s.mac;
             const w = firstNum(metric(d, 'active_power'));
             const kw = w == null ? null : w / 1000; // 유효전력은 W 로 온다
+            const score = fx(d?.health?.healthIndex);
             return (
               <div key={s.mac} className="overflow-hidden rounded-lg border border-white/10 bg-white/[0.03]">
                 <button
@@ -143,11 +144,11 @@ export function DxSensorsSection({ plantCode }: { plantCode?: number }) {
                   </span>
                   <span className="flex items-baseline gap-1">
                     {stale ? (
-                      <span className="text-[12px] font-bold text-slate-500">{stopLabel(s.mac, latest.status === 'ok')}</span>
+                      <span className="text-[13px] font-bold text-slate-300">{stopLabel(s.mac, latest.status === 'ok')}</span>
                     ) : (
                       <>
-                        <span className={`text-[15px] font-extrabold ${kw != null ? 'text-slate-100' : 'text-slate-500'}`}>{fx(kw) ?? NONE}</span>
-                        {kw != null && <span className="text-[11px] font-bold text-slate-500">kW</span>}
+                        <span className={`text-[17px] font-extrabold ${score ? 'text-white' : 'text-slate-400'}`}>{score ?? NONE}</span>
+                        {score && <span className="text-[13px] font-bold text-slate-300">점</span>}
                       </>
                     )}
                   </span>
@@ -155,11 +156,11 @@ export function DxSensorsSection({ plantCode }: { plantCode?: number }) {
                 {isOpen && (
                   <div className="border-t border-white/10 px-3 py-2.5">
                     {stale ? (
-                      <p className="text-[12px] text-slate-500">{d ? `수집 중단 · 마지막 수신 ${d.receivedAt}` : stopLabel(s.mac, latest.status === 'ok')}</p>
+                      <p className="text-[13px] text-slate-300">{d ? `수집 중단 · 마지막 수신 ${d.receivedAt}` : stopLabel(s.mac, latest.status === 'ok')}</p>
                     ) : (
-                      <dl className="space-y-1.5 text-[12.5px]">
+                      <dl className="space-y-2 text-[14px]">
                         {/* 울산 예지보전 설비별 상태 표와 같은 칸 · 순서 · 이름 */}
-                        <Line label="Health" value={fx(d?.health?.healthIndex)} />
+                        <Line label="Health" value={score} />
                         <Line label="전류 R/S/T (A)" value={rst(metric(d, 'current_rst'))} />
                         <Line label="전압 R/S/T (V)" value={rst(metric(d, 'voltage_rst'))} />
                         <Line label="유효전력 (kW)" value={fx(kw)} />

@@ -79,7 +79,7 @@ export function TrendChart<T extends TrendPoint>({
         {[hi, lo].map((t, i) => (
           <g key={i}>
             <line x1={L} x2={W - 6} y1={Y(t)} y2={Y(t)} stroke="rgba(255,255,255,.08)" />
-            <text x={L - 5} y={Y(t) + 4} textAnchor="end" fontSize="10" fill="#64748b">
+            <text x={L - 5} y={Y(t) + 4} textAnchor="end" fontSize="11" fill="#cbd5e1">
               {num(t)}
             </text>
           </g>
@@ -94,15 +94,15 @@ export function TrendChart<T extends TrendPoint>({
             <circle cx={X(h.m)} cy={Y(h.p.v)} r="3" fill="#e2e8f0" />
           </g>
         )}
-        <text x={L} y={H - 4} fontSize="10" fill="#64748b">
+        <text x={L} y={H - 4} fontSize="11" fill="#cbd5e1">
           {hours}시간 전
         </text>
         {unit && (
-          <text x={(L + W) / 2} y={H - 4} textAnchor="middle" fontSize="10" fill="#64748b">
+          <text x={(L + W) / 2} y={H - 4} textAnchor="middle" fontSize="11" fill="#cbd5e1">
             {unit}
           </text>
         )}
-        <text x={W - 6} y={H - 4} textAnchor="end" fontSize="10" fill="#64748b">
+        <text x={W - 6} y={H - 4} textAnchor="end" fontSize="11" fill="#cbd5e1">
           현재
         </text>
       </svg>
