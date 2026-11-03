@@ -11,18 +11,18 @@ export function EventPopup({ kind, onClose }: { kind: PlantEventKind; onClose: (
       {/* 머리 — 빨간 점(깜빡임) + 제목 + 판정 시각 */}
       <div className="flex items-center gap-2 border-b border-white/10 bg-red-500/10 px-4 py-2.5">
         <span className="h-2 w-2 animate-pulse rounded-full bg-red-400" />
-        <span className="text-[13.5px] font-extrabold text-red-300">{e.title}</span>
-        <span className="ml-auto text-[11.5px] font-bold text-slate-500">{e.occurredAt}</span>
+        <span className="text-[14px] font-extrabold text-red-300">{e.title}</span>
+        <span className="ml-auto text-[13px] font-bold text-slate-300">{e.occurredAt}</span>
       </div>
 
       <div className="px-4 py-3">
-        <div className="text-[12.5px] leading-relaxed text-slate-300">{e.detail}</div>
-        <div className="mt-1 text-[12.5px] font-bold leading-relaxed text-slate-100">{e.action}</div>
+        <div className="text-[13px] leading-relaxed text-slate-300">{e.detail}</div>
+        <div className="mt-1 text-[13px] font-bold leading-relaxed text-slate-100">{e.action}</div>
 
         <button
           type="button"
           onClick={onClose}
-          className="mt-3 w-full rounded-lg bg-white/10 py-2 text-[12.5px] font-bold text-slate-200 transition-colors hover:bg-white/20"
+          className="mt-3 w-full rounded-lg bg-white/10 py-2 text-[13px] font-bold text-slate-200 transition-colors hover:bg-white/20"
         >
           확인
         </button>

@@ -95,15 +95,15 @@ export function FacilityLabels({
           title={f.locationNote ? `${f.name} — ${f.locationNote}` : f.name}
           style={{ position: 'absolute', left: 0, top: 0, visibility: 'hidden' }}
           className={`flex items-center gap-1.5 whitespace-nowrap rounded-full border border-white/20
-                      bg-slate-950/85 px-3 py-1.5 text-[11px] font-bold text-slate-100 shadow-lg backdrop-blur
+                      bg-slate-950/85 px-3 py-1.5 text-[13px] font-bold text-slate-100 shadow-lg backdrop-blur
                       transition-opacity duration-200 hover:border-white/40 hover:bg-slate-900
                       ${far ? 'pointer-events-auto opacity-100' : 'pointer-events-none opacity-0'}`}
         >
           <MIcon name="factory" size={13} className="text-amber-400" />
           {f.name}
           {/* 부지가 확정되지 않은 발전소는 그렇다고 밝힌다 */}
-          {f.locationNote && <span className="text-[9px] font-bold text-amber-300/70">위치 임시</span>}
-          <MIcon name="chevron_right" size={13} className="text-slate-500" />
+          {f.locationNote && <span className="text-[12px] font-bold text-amber-300/70">위치 임시</span>}
+          <MIcon name="chevron_right" size={13} className="text-slate-300" />
         </button>
       ))}
 
@@ -117,13 +117,13 @@ export function FacilityLabels({
           title={`${a.name} — ${a.locationNote}`}
           style={{ position: 'absolute', left: 0, top: 0, visibility: 'hidden' }}
           className="pointer-events-auto flex items-center gap-1.5 whitespace-nowrap rounded-full border border-dashed border-amber-300/40
-                     bg-slate-950/70 px-3 py-1.5 text-[11px] font-bold text-slate-300 shadow-lg backdrop-blur
+                     bg-slate-950/70 px-3 py-1.5 text-[13px] font-bold text-slate-300 shadow-lg backdrop-blur
                      transition-colors hover:border-amber-300/70 hover:bg-slate-900"
         >
           <MIcon name={a.icon} size={13} className="text-amber-300/80" />
           {a.name}
-          <span className="text-[9px] font-bold text-amber-300/70">예정</span>
-          <MIcon name="chevron_right" size={13} className="text-slate-500" />
+          <span className="text-[12px] font-bold text-amber-300/70">예정</span>
+          <MIcon name="chevron_right" size={13} className="text-slate-300" />
         </button>
       ))}
     </div>

@@ -16,12 +16,12 @@ const fmt = (n: number, d = 0) =>
 function MetricTile({ label, value, unit, sub, accent }: { label: string; value: string; unit: string; sub?: string; accent?: boolean }) {
   return (
     <div className={`rounded-lg px-3 py-3 ${accent ? 'bg-emerald-500/10' : 'bg-white/[0.04]'}`}>
-      <div className={`text-[12px] ${accent ? 'text-emerald-200/80' : 'text-slate-400'}`}>{label}</div>
+      <div className={`text-[13px] ${accent ? 'text-emerald-200/80' : 'text-slate-300'}`}>{label}</div>
       <div className={`mt-1 text-[20px] font-extrabold leading-tight ${accent ? 'text-emerald-300' : 'text-white'}`}>
         {value}
-        <span className={`ml-1 text-[12px] font-bold ${accent ? 'text-emerald-200/70' : 'text-slate-500'}`}>{unit}</span>
+        <span className={`ml-1 text-[13px] font-bold ${accent ? 'text-emerald-200/70' : 'text-slate-300'}`}>{unit}</span>
       </div>
-      {sub && <div className={`mt-1 text-[13px] ${accent ? 'text-emerald-200/70' : 'text-slate-500'}`}>{sub}</div>}
+      {sub && <div className={`mt-1 text-[14px] ${accent ? 'text-emerald-200/70' : 'text-slate-300'}`}>{sub}</div>}
     </div>
   );
 }

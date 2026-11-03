@@ -25,7 +25,7 @@ export function InfoHint({ text, label, align = 'center' }: { text: string; labe
         onFocus={() => setOpen(true)}
         onBlur={() => setOpen(false)}
         onKeyDown={(e) => e.key === 'Escape' && setOpen(false)}
-        className="inline-flex cursor-help text-slate-500 hover:text-slate-200"
+        className="inline-flex cursor-help text-slate-300 hover:text-slate-200"
       >
         {/* (i) — 아이콘 폰트 서브셋(index.css)에 info 가 없어 글자 'info'로 나오던 것을 그림으로 */}
         <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
@@ -38,7 +38,7 @@ export function InfoHint({ text, label, align = 'center' }: { text: string; labe
         id={id}
         role="tooltip"
         hidden={!open}
-        className={`absolute top-full z-50 mt-1 w-60 max-w-[calc(100vw-2rem)] rounded-md border border-white/10 bg-slate-900 px-2.5 py-2 text-[12px] font-normal leading-relaxed text-slate-200 shadow-lg ${POS[align]}`}
+        className={`absolute top-full z-50 mt-1 w-60 max-w-[calc(100vw-2rem)] rounded-md border border-white/10 bg-slate-900 px-2.5 py-2 text-[13px] font-normal leading-relaxed text-slate-200 shadow-lg ${POS[align]}`}
       >
         {text}
       </span>

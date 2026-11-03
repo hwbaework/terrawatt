@@ -26,13 +26,13 @@ const DOT: Record<DtItem['status'], string> = {
 function ItemRow({ item }: { item: DtItem }) {
   return (
     <div className="flex items-baseline justify-between gap-3 border-b border-white/5 py-2 last:border-0">
-      <span className="flex items-center text-[13px] font-semibold text-slate-200">
+      <span className="flex items-center text-[14px] font-semibold text-slate-200">
         <span className={`mr-1.5 inline-block h-[7px] w-[7px] shrink-0 rounded-full ${DOT[item.status]}`} />
         {item.label}
       </span>
-      <span className={`shrink-0 text-[13px] font-extrabold ${item.value ? 'text-slate-100' : 'text-slate-600'}`}>
+      <span className={`shrink-0 text-[14px] font-extrabold ${item.value ? 'text-slate-100' : 'text-slate-300'}`}>
         {item.value ?? '—'}
-        {item.unit && <span className="ml-1 text-[12px] font-bold">{item.unit}</span>}
+        {item.unit && <span className="ml-1 text-[13px] font-bold">{item.unit}</span>}
       </span>
     </div>
   );
@@ -91,7 +91,7 @@ export function DtScreenPanel({
               버튼은 좌우로 나란히 (사용자 지시) — 셋이 되면서 좁아져 라벨은 재난 이름만 */}
           {screen.id === 'safety' && (
             <div className="px-5 py-3">
-              <div className="mb-1.5 text-[12px] font-bold uppercase tracking-wider text-slate-500">시뮬레이션</div>
+              <div className="mb-1.5 text-[13px] font-bold uppercase tracking-wider text-slate-300">시뮬레이션</div>
               <div className="flex gap-2">
                 {(
                   [
@@ -104,7 +104,7 @@ export function DtScreenPanel({
                     key={label}
                     type="button"
                     onClick={run}
-                    className="flex-1 rounded-lg bg-blue-600/90 px-3 py-2.5 text-[12px] font-bold text-white transition-colors hover:bg-blue-600"
+                    className="flex-1 rounded-lg bg-blue-600/90 px-3 py-2.5 text-[13px] font-bold text-white transition-colors hover:bg-blue-600"
                   >
                     {label}
                   </button>

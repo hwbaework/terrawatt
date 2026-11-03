@@ -93,7 +93,7 @@ export function BizDock({
       style={{ top }}
       className="fixed left-4 z-20 w-64 overflow-hidden rounded-xl border border-slate-200 bg-white shadow-xl"
     >
-      <div className="flex items-center gap-1.5 border-b border-slate-100 px-3 py-1.5 text-[12.5px] font-bold text-slate-500">
+      <div className="flex items-center gap-1.5 border-b border-slate-100 px-3 py-1.5 text-[13px] font-bold text-slate-600">
         <MIcon name="payments" size={13} className="text-blue-600" />
         사업성 결과 {buildings.length}건
       </div>
@@ -116,19 +116,19 @@ function DockRow({ b, on, onOpen }: { b: SketchBuilding; on: boolean; onOpen: ()
     >
       <span className={`inline-block h-2.5 w-2.5 shrink-0 rounded-sm border ${on ? 'border-blue-600 bg-blue-500' : 'border-slate-400 bg-sky-300'}`} />
       <span className="min-w-0 flex-1">
-        <span className="block truncate text-[12px] font-extrabold text-slate-800">{b.project.customer || b.name}</span>
+        <span className="block truncate text-[13px] font-extrabold text-slate-800">{b.project.customer || b.name}</span>
         {r.year1Krw != null ? (
-          <span className="block truncate text-[13px] font-extrabold text-blue-600">
+          <span className="block truncate text-[14px] font-extrabold text-blue-600">
             연 {krw(r.year1Krw)} {isSelf ? '절감' : '매출'}
           </span>
         ) : (
-          <span className="block truncate text-[12.5px] text-slate-500">단가표 필요</span>
+          <span className="block truncate text-[13px] text-slate-600">단가표 필요</span>
         )}
-        <span className="block truncate text-[12px] text-slate-400">
+        <span className="block truncate text-[13px] text-slate-600">
           {num(b.pv.capacityKw, 1)} kW · 연 {num(r.year1Mwh, 1)} MWh
         </span>
       </span>
-      <MIcon name="chevron_right" size={16} className={`shrink-0 ${on ? 'text-blue-600' : 'text-slate-400'}`} />
+      <MIcon name="chevron_right" size={16} className={`shrink-0 ${on ? 'text-blue-600' : 'text-slate-600'}`} />
     </button>
   );
 }
@@ -221,14 +221,14 @@ export function BizResultView({
         <div className="min-w-0">
           <div className="flex items-center gap-2">
             <h2 className="truncate text-[19px] font-extrabold text-slate-900">{name} 태양광 사업성 검토</h2>
-            <span className="rounded-md bg-blue-600 px-2 py-0.5 text-[13px] font-bold text-white">{PV_MODE_LABEL[p.mode]}</span>
+            <span className="rounded-md bg-blue-600 px-2 py-0.5 text-[14px] font-bold text-white">{PV_MODE_LABEL[p.mode]}</span>
             {/* 화면 전용 배지 — 인쇄물엔 의미 없어 숨김 */}
-            <span className="flex items-center gap-1 rounded-md bg-emerald-50 px-2 py-0.5 text-[13px] font-bold text-emerald-700 print:hidden">
+            <span className="flex items-center gap-1 rounded-md bg-emerald-50 px-2 py-0.5 text-[14px] font-bold text-emerald-700 print:hidden">
               <span className="inline-block h-1.5 w-1.5 animate-pulse rounded-full bg-emerald-500" />
               실시간
             </span>
           </div>
-          <p className="mt-1.5 truncate text-[12px] text-slate-500">
+          <p className="mt-1.5 truncate text-[13px] text-slate-600">
             작성일 {dateStr} · 발전 기준: 일평균 {b.pv.assumption.hoursPerDay}h · 분석기간 {r.years}년
           </p>
         </div>
@@ -237,7 +237,7 @@ export function BizResultView({
             type="button"
             onClick={onClose}
             title="닫기 — 결과는 왼쪽 결과함에 남아 있어 언제든 다시 펼칠 수 있음"
-            className="flex items-center justify-center rounded-lg p-1.5 text-slate-400 hover:bg-slate-100 hover:text-slate-900"
+            className="flex items-center justify-center rounded-lg p-1.5 text-slate-600 hover:bg-slate-100 hover:text-slate-900"
           >
             <MIcon name="close" size={18} />
           </button>
@@ -264,10 +264,10 @@ export function BizResultView({
         </div>
 
         {r.moneyNote && (
-          <p className="mt-4 rounded-xl border border-amber-300 bg-amber-50 px-4 py-3 text-[12.5px] font-bold text-amber-800">{r.moneyNote}</p>
+          <p className="mt-4 rounded-xl border border-amber-300 bg-amber-50 px-4 py-3 text-[13px] font-bold text-amber-800">{r.moneyNote}</p>
         )}
         {rate && (
-          <p className="mt-3 text-[13px] text-slate-600" title={rate.source}>
+          <p className="mt-3 text-[14px] text-slate-600" title={rate.source}>
             적용 단가 — 기본요금 <b>{num(rate.basicKrwKw)} 원/kW</b> · 전력량 <b>{num(rate.energyKrwKwh, 1)} 원/kWh</b>
           </p>
         )}
@@ -279,7 +279,7 @@ export function BizResultView({
           </Card>
           <Card title={`${r.years}년 누적 ${moneyWord}`}>
             {r.totalKrw == null ? (
-              <div className="flex h-[200px] items-center justify-center text-[13px] text-slate-400">단가표가 없어 그릴 수 없습니다</div>
+              <div className="flex h-[200px] items-center justify-center text-[14px] text-slate-600">단가표가 없어 그릴 수 없습니다</div>
             ) : (
               <LineChart
                 values={r.rows.map((x) => (x.cumKrw ?? 0) / 1e6)}
@@ -299,8 +299,8 @@ export function BizResultView({
         {/* 연차 표 */}
         <Card title={`${r.years}년간 운영 분석`} className="mt-4">
           <div className="print-scroll max-h-[300px] overflow-y-auto rounded-lg border border-slate-200">
-            <table className="w-full text-[13px]">
-              <thead className="sticky top-0 bg-slate-50 text-[12px] text-slate-600">
+            <table className="w-full text-[14px]">
+              <thead className="sticky top-0 bg-slate-50 text-[13px] text-slate-600">
                 <tr>
                   <th className="px-3 py-2 text-left font-bold">년차</th>
                   <th className="px-3 py-2 text-right font-bold">예측 (MWh)</th>
@@ -321,11 +321,11 @@ export function BizResultView({
                       {actualYearlyMwh && (
                         <td className="px-3 py-1.5 text-right">
                           {act == null ? (
-                            <span className="text-slate-300">—</span>
+                            <span className="text-slate-600">—</span>
                           ) : (
                             <>
                               <b className="text-blue-800">{num(act, 1)}</b>{' '}
-                              <span className={`text-[12px] ${diffPct! < 0 ? 'text-red-500' : 'text-emerald-600'}`}>
+                              <span className={`text-[13px] ${diffPct! < 0 ? 'text-red-500' : 'text-emerald-600'}`}>
                                 ({diffPct! >= 0 ? '+' : ''}{num(diffPct!, 1)}%)
                               </span>
                             </>
@@ -351,12 +351,12 @@ export function BizResultView({
 function Kpi({ label, value, unit, sub, dim }: { label: string; value: string; unit?: string; sub: string; dim?: boolean }) {
   return (
     <div className="rounded-xl border border-slate-200 bg-white px-5 py-4 shadow-sm">
-      <div className="text-[12px] font-bold text-slate-500">{label}</div>
-      <div className={`mt-1.5 text-[26px] font-extrabold leading-tight ${dim ? 'text-slate-400' : 'text-slate-900'}`}>
+      <div className="text-[13px] font-bold text-slate-600">{label}</div>
+      <div className={`mt-1.5 text-[26px] font-extrabold leading-tight ${dim ? 'text-slate-600' : 'text-slate-900'}`}>
         {value}
-        {unit && <span className="ml-1 text-[14px] font-bold text-slate-500">{unit}</span>}
+        {unit && <span className="ml-1 text-[14px] font-bold text-slate-600">{unit}</span>}
       </div>
-      {sub && <div className="mt-1.5 truncate text-[13px] text-slate-500">{sub}</div>}
+      {sub && <div className="mt-1.5 truncate text-[14px] text-slate-600">{sub}</div>}
     </div>
   );
 }
@@ -364,7 +364,7 @@ function Card({ title, desc, children, className = '' }: { title: string; desc?:
   return (
     <div className={`rounded-xl border border-slate-200 bg-white px-5 py-4 shadow-sm ${className}`}>
       <div className="text-[14px] font-extrabold text-slate-800">{title}</div>
-      {desc && <div className="mt-0.5 text-[13px] text-slate-500">{desc}</div>}
+      {desc && <div className="mt-0.5 text-[14px] text-slate-600">{desc}</div>}
       <div className="mt-3">{children}</div>
     </div>
   );
@@ -391,7 +391,7 @@ function BarChart({ values, labels, actual }: { values: number[]; labels: string
     <div className="relative">
       {/* 범례 — 색 칩으로만 */}
       {actual && (
-        <div className="mb-1.5 flex items-center gap-4 text-[12px] font-bold text-slate-600">
+        <div className="mb-1.5 flex items-center gap-4 text-[13px] font-bold text-slate-600">
           <span className="flex items-center gap-1.5">
             <span className="inline-block h-3 w-3 rounded-sm bg-[#60a5fa]" />예측
           </span>
@@ -406,12 +406,12 @@ function BarChart({ values, labels, actual }: { values: number[]; labels: string
           className="pointer-events-none absolute top-2 z-10 -translate-x-1/2 whitespace-nowrap rounded-lg border border-slate-200 bg-white px-3 py-2 text-center shadow-xl"
           style={{ left: `${(cx(hover) / W) * 100}%` }}
         >
-          <div className="text-[12px] font-bold text-slate-500">{labels[hover]}</div>
-          <div className="text-[13px] font-extrabold text-blue-500">예측 {num(hv)} kWh</div>
+          <div className="text-[13px] font-bold text-slate-600">{labels[hover]}</div>
+          <div className="text-[14px] font-extrabold text-blue-500">예측 {num(hv)} kWh</div>
           {ha != null && (
             <>
-              <div className="text-[13px] font-extrabold text-blue-800">실측 {num(ha)} kWh</div>
-              <div className={`text-[12px] font-bold ${ha - hv >= 0 ? 'text-emerald-600' : 'text-red-500'}`}>
+              <div className="text-[14px] font-extrabold text-blue-800">실측 {num(ha)} kWh</div>
+              <div className={`text-[13px] font-bold ${ha - hv >= 0 ? 'text-emerald-600' : 'text-red-500'}`}>
                 차이 {ha - hv >= 0 ? '+' : ''}{num(ha - hv)} kWh ({ha - hv >= 0 ? '+' : ''}{num(((ha - hv) / Math.max(1, hv)) * 100, 1)}%)
               </div>
             </>
@@ -424,7 +424,7 @@ function BarChart({ values, labels, actual }: { values: number[]; labels: string
           return (
             <g key={i}>
               <line x1={padL} x2={W - padR} y1={y(v)} y2={y(v)} stroke="#e2e8f0" strokeWidth={1} />
-              <text x={padL - 6} y={y(v) + 3.5} textAnchor="end" fill="#64748b" fontSize={11.5}>
+              <text x={padL - 6} y={y(v) + 3.5} textAnchor="end" fill="#64748b" fontSize={12}>
                 {num(v / 1000, 0)}k
               </text>
             </g>
@@ -438,7 +438,7 @@ function BarChart({ values, labels, actual }: { values: number[]; labels: string
               <rect x={x0 + bw * 0.2} y={y(v)} width={bw * 0.6} height={H - padB - y(v)} rx={3} fill={on ? '#3b82f6' : '#60a5fa'} />
               {/* 값·축 라벨은 막대가 많으면 겹쳐서 솎는다(값은 12개까지, 축은 14개 넘으면 격월) — 정확한 값은 툴팁 */}
               {!actual && values.length <= 12 && (
-                <text x={x0 + bw * 0.5} y={y(v) - 5} textAnchor="middle" fill="#334155" fontSize={11.5} fontWeight={700}>
+                <text x={x0 + bw * 0.5} y={y(v) - 5} textAnchor="middle" fill="#334155" fontSize={12} fontWeight={700}>
                   {num(v / 1000, 1)}k
                 </text>
               )}
@@ -522,10 +522,10 @@ function LineChart({ values, low, high, fmt }: { values: number[]; low?: number[
           className="pointer-events-none absolute -top-1 z-10 -translate-x-1/2 -translate-y-full whitespace-nowrap rounded-lg border border-slate-200 bg-white px-3 py-2 text-center shadow-xl"
           style={{ left: `${(x(hover) / W) * 100}%` }}
         >
-          <div className="text-[12px] font-bold text-slate-500">{hover + 1}년차</div>
+          <div className="text-[13px] font-bold text-slate-600">{hover + 1}년차</div>
           <div className="text-[14px] font-extrabold text-blue-600">누적 {fmt(values[hover])}</div>
           {low && high && (
-            <div className="text-[12px] text-slate-500">
+            <div className="text-[13px] text-slate-600">
               범위 {fmt(low[hover])} ~ {fmt(high[hover])}
             </div>
           )}
@@ -537,7 +537,7 @@ function LineChart({ values, low, high, fmt }: { values: number[]; low?: number[
           return (
             <g key={i}>
               <line x1={padL} x2={W - padR} y1={y(v)} y2={y(v)} stroke="#e2e8f0" strokeWidth={1} />
-              <text x={padL - 6} y={y(v) + 3.5} textAnchor="end" fill="#64748b" fontSize={11.5}>
+              <text x={padL - 6} y={y(v) + 3.5} textAnchor="end" fill="#64748b" fontSize={12}>
                 {num(v)}
               </text>
             </g>
@@ -593,7 +593,7 @@ function Tornado({ sens, fmt }: { sens: ReturnType<typeof sensitivity>; fmt: (v:
     const cls = value - sens.base < 0 ? 'text-red-600' : 'text-emerald-700';
     return (
       <span className={`leading-tight ${right ? 'text-left' : 'text-right'}`}>
-        <span className="block whitespace-nowrap text-[12px] text-slate-400">{input}</span>
+        <span className="block whitespace-nowrap text-[13px] text-slate-600">{input}</span>
         <span className={`block whitespace-nowrap text-[15px] font-extrabold ${cls}`}>{fmt(value)}</span>
       </span>
     );
@@ -610,11 +610,11 @@ function Tornado({ sens, fmt }: { sens: ReturnType<typeof sensitivity>; fmt: (v:
           }`}
           style={{ width: `${Math.max(width, 4)}%` }}
         >
-          {width >= 22 && <span className="text-[11.5px] font-extrabold text-white">{label}</span>}
+          {width >= 28 && <span className="text-[13px] font-extrabold text-white">{label}</span>}
         </div>
-        {width < 22 && (
+        {width < 28 && (
           <span
-            className={`absolute top-1/2 -translate-y-1/2 text-[11.5px] font-bold text-slate-400 ${
+            className={`absolute top-1/2 -translate-y-1/2 text-[13px] font-bold text-slate-600 ${
               right ? 'left-[calc(4%+8px)]' : 'right-[calc(4%+8px)]'
             }`}
             style={right ? { left: `calc(${Math.max(width, 4)}% + 6px)` } : { right: `calc(${Math.max(width, 4)}% + 6px)` }}
@@ -627,7 +627,7 @@ function Tornado({ sens, fmt }: { sens: ReturnType<typeof sensitivity>; fmt: (v:
   };
   return (
     <div className="space-y-3">
-      <div className="grid grid-cols-[180px_1fr_1fr] gap-x-3 text-[13px] font-bold text-slate-500">
+      <div className="grid grid-cols-[180px_1fr_1fr] gap-x-3 text-[14px] font-bold text-slate-600">
         <span>입력값</span>
         <span className="text-right">낮췄을 때</span>
         <span>높였을 때</span>
@@ -638,8 +638,8 @@ function Tornado({ sens, fmt }: { sens: ReturnType<typeof sensitivity>; fmt: (v:
         return (
           <div key={row.label} className="grid grid-cols-[180px_1fr_1fr] items-center gap-x-3">
             <span className="leading-tight">
-              <span className="block text-[13.5px] font-bold text-slate-800">{row.label}</span>
-              <span className="block text-[12px] text-slate-400">현재 {row.baseInput}</span>
+              <span className="block text-[14px] font-bold text-slate-800">{row.label}</span>
+              <span className="block text-[13px] text-slate-600">현재 {row.baseInput}</span>
             </span>
             {/* 왼쪽(낮춤) — 조건/금액 스택 + 막대(변화율 내장) */}
             <div className="flex items-center justify-end gap-2.5">

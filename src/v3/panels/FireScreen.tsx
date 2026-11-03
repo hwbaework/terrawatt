@@ -38,7 +38,7 @@ export function FireScreen() {
             type="button"
             onClick={play}
             disabled={shown}
-            className={`flex-1 rounded-lg py-2.5 text-[13px] font-bold transition-colors ${
+            className={`flex-1 rounded-lg py-2.5 text-[14px] font-bold transition-colors ${
               shown ? 'bg-blue-600/40 text-blue-200/60' : 'bg-blue-600/90 text-white hover:bg-blue-600'
             }`}
           >
@@ -48,8 +48,8 @@ export function FireScreen() {
             type="button"
             onClick={stop}
             disabled={!shown}
-            className={`flex-1 rounded-lg py-2.5 text-[13px] font-bold transition-colors ${
-              shown ? 'bg-white/10 text-slate-200 hover:bg-white/20' : 'bg-white/[0.04] text-slate-600'
+            className={`flex-1 rounded-lg py-2.5 text-[14px] font-bold transition-colors ${
+              shown ? 'bg-white/10 text-slate-200 hover:bg-white/20' : 'bg-white/[0.04] text-slate-300'
             }`}
           >
             정지
