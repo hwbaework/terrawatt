@@ -96,7 +96,7 @@ export function DxSensorsSection({ plantCode }: { plantCode?: number }) {
         <ScoreSummary
           label="설비 상태 (Health Index)"
           value={fx(low?.v)}
-          notes={['설비 상태 점수 0~100, 높을수록 양호', `1시간 갱신${low ? ` · ${hhmm(low.w.windowStartedAt)}~${hhmm(low.w.windowEndedAt)}` : ''}`]}
+          hint={['설비 상태 점수 0~100, 높을수록 양호', `1시간 갱신${low ? ` · ${hhmm(low.w.windowStartedAt)}~${hhmm(low.w.windowEndedAt)}` : ''}`]}
         />
       </Section>
 

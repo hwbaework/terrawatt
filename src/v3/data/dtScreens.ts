@@ -229,7 +229,7 @@ export const DT_SCREENS: DtScreen[] = [
           { label: '전기안전지수', source: 'DX API-006 safetyIndex', period: '5분', status: 'waiting', note: '0~100' },
           { label: '등급', source: 'DX API-006 riskLevel', period: '5분', status: 'waiting', note: '5단계 danger/warning/caution/watch/normal (연계 v1.1)' },
           { label: '항목별 위험점수', source: 'DX API-006 risks', period: '5분', status: 'waiting', note: '전류·전압·누설·고조파·온도·역률·아크, 0~100 정수' },
-          { label: '아크 지수', source: '아이티공간 아크 지수(문서 6.4)', status: 'waiting', note: '시범 산출 중 · 판정 보류' },
+          { label: '아크 지수', source: '아이티공간 아크 지수(문서 6.4)', status: 'waiting', note: '미산출' },
         ],
       },
       /* ⚠️ 화면에서 뺀 항목(2026-08-26 사용자 확정 — "데이터가 없으면 사용할 수 없는 데이터"):

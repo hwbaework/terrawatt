@@ -1,4 +1,4 @@
-import { useId, useState } from 'react';
+import { useId, useState, type ReactNode } from 'react';
 
 /* (i) 도움말 — 지표 설명은 값 아래에 늘어놓지 않고 아이콘에 올리면(또는 포커스하면) 보인다.
    연계 문서 v1.1 7장 '도움말'(법정 판정 · 아크 확률이 아니라는 점)도 여기에 둔다.
@@ -9,7 +9,7 @@ const POS = {
   right: 'right-0',
 } as const;
 
-export function InfoHint({ text, label, align = 'center' }: { text: string; label: string; align?: keyof typeof POS }) {
+export function InfoHint({ text, label, align = 'center' }: { text: ReactNode; label: string; align?: keyof typeof POS }) {
   const [open, setOpen] = useState(false);
   const id = useId();
   return (

@@ -23,7 +23,7 @@ import { TrendChart } from './TrendChart';
 /* 안전 — 전기안전지수(아이티공간 연계 v1.1 API-006 · 007, 5분). 화면 모양은 예지보전과 같다(DxScoreParts.tsx).
    · 예지보전은 점수만, 안전은 점수 + 등급 5가지(2026-11-03 사용자: 등급은 안전에 있어야 한다).
      센서가 잰 값(℃ · A · %)은 예지보전에 있다 — 여기 넣지 않는다
-   · 위 = 인버터 중 가장 나쁜 지수 · 등급([등급]을 누르면 팝업으로 5가지), 아크 지수(판정 보류)
+   · 위 = 인버터 중 가장 나쁜 지수 · 등급([등급]을 누르면 팝업으로 5가지), 아크 지수(미산출)
    · 센서별 전기안전지수 = 번호 순(이름은 인버터 #1), 줄 = 지수 · 등급, 누르면 항목별 위험점수(가장 높은 항목 amber) · 산출 시각 · 24시간 추이(올리면 시각 · 지수 · 등급)
    · 계산식은 화면에 쓰지 않는다. 15분 넘게 멈추면 '갱신 지연'(문서 6.2)
    · 등급 색은 울산과 같게 — 위험 · 경고 빨강, 주의 amber, 관찰 회색, 정상 초록 */
@@ -96,7 +96,7 @@ function worstSafety(xs: DxSafety[]) {
     .sort((a, b) => RISK_ORDER.indexOf(a.riskLevel) - RISK_ORDER.indexOf(b.riskLevel) || (a.safetyIndex ?? 101) - (b.safetyIndex ?? 101))[0];
 }
 
-/** 항목별 위험점수 0~100(정수) — 가장 높은 항목(지수를 낮춘 항목)은 amber(문서 6.2), 아크는 제공 전까지 '-' */
+/** 항목별 위험점수 0~100(정수) — 가장 높은 항목(지수를 낮춘 항목)은 amber(문서 6.2), 아크는 제공 전까지 미산출 */
 function RiskLines({ sf }: { sf: DxSafety }) {
   const top = topRisk(sf);
   const late = isSafetyLate(sf);
@@ -104,7 +104,7 @@ function RiskLines({ sf }: { sf: DxSafety }) {
     <>
       {RISK_ITEMS.map((it) => {
         const v = sf.risks[it.key];
-        return <Line key={it.key} label={it.label} value={typeof v === 'number' ? fx(v, 0) : null} hot={!late && top?.label === it.label} />;
+        return <Line key={it.key} label={it.label} value={typeof v === 'number' ? fx(v, 0) : it.key === 'arc' ? '미산출' : null} hot={!late && top?.label === it.label} />;
       })}
     </>
   );
@@ -165,16 +165,16 @@ export function SafetyScreen({ plantCode }: { plantCode: number | undefined }) {
           }
           value={fx(worst?.safetyIndex)}
           badge={worst ? <Pill level={worst.riskLevel} /> : allLate ? <Pill level="normal" late /> : null}
-          notes={['전기안전 점수 0~100, 높을수록 양호', `5분 갱신${worst ? ` · 산출 ${hhmm(worst.diagnosedAt)}` : ''}`]}
+          hintAlign="left"
+          hint={['전기안전 점수 0~100, 높을수록 양호', `5분 갱신${worst ? ` · 산출 ${hhmm(worst.diagnosedAt)}` : ''}`]}
         />
         {levelsOpen && <LevelsPopup onClose={() => setLevelsOpen(false)} />}
         {/* 아크 지수 — 시범 산출 중이라 외부 제공 전(문서 6.4) */}
         <div className="mt-1 border-t border-white/5 py-2">
           <div className="flex items-baseline justify-between gap-2">
             <span className="text-[14px] font-semibold text-slate-200">아크 지수</span>
-            <span className="text-[14px] font-bold text-slate-300">판정 보류</span>
+            <span className="text-[14px] font-bold text-slate-300">미산출</span>
           </div>
-          <Note className="mt-1">시범 산출 중</Note>
         </div>
       </Section>
 

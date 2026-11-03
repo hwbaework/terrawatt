@@ -59,7 +59,8 @@ export function Drawer({
           <MIcon name="close" size={17} />
         </button>
       </header>
-      <div className="min-h-0 flex-1 overflow-y-auto pb-6">{children}</div>
+      {/* 스크롤 막대 자리를 늘 비워 둔다 — 칸을 펼쳐 막대가 생겨도 내용 폭이 바뀌지 않게 */}
+      <div className="min-h-0 flex-1 overflow-y-auto pb-6 [scrollbar-gutter:stable]">{children}</div>
     </aside>
   );
 }

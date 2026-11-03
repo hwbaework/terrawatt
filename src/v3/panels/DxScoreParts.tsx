@@ -1,31 +1,42 @@
 import type { ReactNode } from 'react';
+import { InfoHint } from './InfoHint';
 
 /* 예지보전 · 안전이 같이 쓰는 점수 화면 부품 — 글자 크기 · 칸 모양을 여기 한 곳에서 정한다(2026-11-03 사용자: 두 화면을 통일).
    점수(0~100)는 두 화면 공통이고, 등급 같은 추가 표시는 badge · labelExtra 로 안전 화면만 넣는다. */
 
 const NONE = '-';
 
-/** 맨 위 전체 점수 */
+/** 맨 위 전체 점수 — 점수 설명 · 갱신 시각은 (i) 툴팁에 둔다(2026-11-03 사용자) */
 export function ScoreSummary({
   label,
   labelExtra,
   value,
   badge,
-  notes,
-  children,
+  hint,
+  hintAlign,
 }: {
   label: string;
   labelExtra?: ReactNode;
   value: string | null;
   badge?: ReactNode;
-  notes: string[];
-  children?: ReactNode;
+  hint: string[];
+  /** 툴팁이 서랍 밖으로 잘리지 않게 — 아이콘 위치에 맞춘다 */
+  hintAlign?: 'center' | 'left' | 'right';
 }) {
   return (
     <div className="py-2">
       <div className="flex items-center justify-between gap-2">
         <span className="flex items-center gap-2 text-[14px] font-semibold text-slate-200">
           {label}
+          <InfoHint
+            label={label}
+            align={hintAlign}
+            text={hint.map((h) => (
+              <span key={h} className="block">
+                {h}
+              </span>
+            ))}
+          />
           {labelExtra}
         </span>
         <span className="flex items-center gap-2">
@@ -36,12 +47,6 @@ export function ScoreSummary({
           {badge}
         </span>
       </div>
-      {children}
-      {notes.map((n, i) => (
-        <p key={n} className={`${i === 0 ? 'mt-1 ' : ''}text-[14px] text-slate-300`}>
-          {n}
-        </p>
-      ))}
     </div>
   );
 }
