@@ -1,4 +1,6 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
+import { createPortal } from 'react-dom';
+import { MIcon } from '../../v2/lib/MIcon';
 import {
   RISK_ITEMS,
   RISK_LEVEL_LABEL,
@@ -21,7 +23,7 @@ import { TrendChart } from './TrendChart';
 /* 안전 — 전기안전지수(아이티공간 연계 v1.1 API-006 · 007, 5분). 화면 모양은 예지보전과 같다(DxScoreParts.tsx).
    · 예지보전은 점수만, 안전은 점수 + 등급 5가지(2026-11-03 사용자: 등급은 안전에 있어야 한다).
      센서가 잰 값(℃ · A · %)은 예지보전에 있다 — 여기 넣지 않는다
-   · 위 = 인버터 중 가장 나쁜 지수 · 등급([등급]을 누르면 5가지), 아크 지수(판정 보류)
+   · 위 = 인버터 중 가장 나쁜 지수 · 등급([등급]을 누르면 팝업으로 5가지), 아크 지수(판정 보류)
    · 센서별 전기안전지수 = 번호 순(이름은 인버터 #1), 줄 = 지수 · 등급, 누르면 항목별 위험점수(가장 높은 항목 amber) · 산출 시각 · 24시간 추이(올리면 시각 · 지수 · 등급)
    · 계산식은 화면에 쓰지 않는다. 15분 넘게 멈추면 '갱신 지연'(문서 6.2)
    · 등급 색은 울산과 같게 — 위험 · 경고 빨강, 주의 amber, 관찰 회색, 정상 초록 */
@@ -46,7 +48,48 @@ function Pill({ level, late }: { level: RiskLevel; late?: boolean }) {
   );
 }
 
-/** 센서들 중 가장 나쁜 안전 결과 — 갱신 중인 것 중 등급이 나쁜 것, 같으면 지수가 낮은 것 */
+/** [등급] 팝업 — 등급 5가지(riskLevel 코드, 문서 5.4). 서랍의 흐림 효과 안에서는 화면 전체를 덮지 못해 body 로 뺀다.
+ *  닫기: X · 바깥 누르기 · Esc */
+function LevelsPopup({ onClose }: { onClose: () => void }) {
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => e.key === 'Escape' && onClose();
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [onClose]);
+  return createPortal(
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4" onClick={onClose}>
+      <div
+        role="dialog"
+        aria-modal="true"
+        aria-label="전기안전지수 등급"
+        onClick={(e) => e.stopPropagation()}
+        className="w-[22rem] max-w-full overflow-hidden rounded-xl border border-white/15 bg-slate-950 shadow-2xl"
+      >
+        <div className="flex items-center justify-between border-b border-white/10 px-4 py-3">
+          <h3 className="text-[15px] font-extrabold text-white">전기안전지수 등급</h3>
+          <button type="button" onClick={onClose} title="닫기" className="rounded-md p-1 text-slate-300 transition-colors hover:bg-white/10 hover:text-white">
+            <MIcon name="close" size={17} />
+          </button>
+        </div>
+        <div className="space-y-2.5 px-4 py-3.5">
+          {RISK_ORDER.map((l) => (
+            <div key={l} className="flex items-center justify-between text-[14px]">
+              <Pill level={l} />
+              <span className="font-mono text-slate-300">{l}</span>
+            </div>
+          ))}
+          <div className="flex items-center justify-between border-t border-white/10 pt-2.5 text-[14px]">
+            <Pill level="normal" late />
+            <span className="text-slate-300">15분 넘게 산출 없음</span>
+          </div>
+        </div>
+      </div>
+    </div>,
+    document.body,
+  );
+}
+
+/** 센서들 중 가장 나쁜 안전 결과— 갱신 중인 것 중 등급이 나쁜 것, 같으면 지수가 낮은 것 */
 function worstSafety(xs: DxSafety[]) {
   return xs
     .filter((x) => !isSafetyLate(x))
@@ -112,7 +155,6 @@ export function SafetyScreen({ plantCode }: { plantCode: number | undefined }) {
         <ScoreSummary
           label="전기안전지수"
           labelExtra={
-            /* 누르면 등급 5가지(riskLevel 코드, 문서 5.4) */
             <button
               type="button"
               onClick={() => setLevelsOpen((v) => !v)}
@@ -124,22 +166,8 @@ export function SafetyScreen({ plantCode }: { plantCode: number | undefined }) {
           value={fx(worst?.safetyIndex)}
           badge={worst ? <Pill level={worst.riskLevel} /> : allLate ? <Pill level="normal" late /> : null}
           notes={['전기안전 점수 0~100, 높을수록 양호', `5분 갱신${worst ? ` · 산출 ${hhmm(worst.diagnosedAt)}` : ''}`]}
-        >
-          {levelsOpen && (
-            <div className="mt-2 space-y-1.5 rounded-lg border border-white/10 bg-white/[0.03] px-3 py-2">
-              {RISK_ORDER.map((l) => (
-                <div key={l} className="flex items-center justify-between text-[14px]">
-                  <Pill level={l} />
-                  <span className="font-mono text-slate-300">{l}</span>
-                </div>
-              ))}
-              <div className="flex items-center justify-between text-[14px]">
-                <Pill level="normal" late />
-                <span className="text-slate-300">15분 넘게 산출 없음</span>
-              </div>
-            </div>
-          )}
-        </ScoreSummary>
+        />
+        {levelsOpen && <LevelsPopup onClose={() => setLevelsOpen(false)} />}
         {/* 아크 지수 — 시범 산출 중이라 외부 제공 전(문서 6.4) */}
         <div className="mt-1 border-t border-white/5 py-2">
           <div className="flex items-baseline justify-between gap-2">
