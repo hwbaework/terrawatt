@@ -5,7 +5,7 @@ import { DX_SENSORS, PLANT_GROUP, SAFETY_MODEL, isDxTarget, type DxFeature, type
    · 지금 시각의 해 높이로 만든다 — 낮엔 전류 · 전력이 오르고 밤엔 0, 역률은 무부하(밤)라 null(문서 5.4)
    · 정격 = 발전소 설비 용량 ÷ 센서 수(한일튜브 429.44 · 용인금속 152.32 · 태성산업 46.08 · 한길 90.88 · 건호이엔씨 33.92 kW)
    · 경우의 수: 정상 / 관찰(한일튜브3 — 전류 불평형) / 주의(용인금속03 — 누설전류) / 수집 중단 · 갱신 지연(용인금속04)
-   · 전기안전지수 = 100 − 가장 높은 위험점수(문서 5.4 응답 예시), 위험점수는 정수. 등급 구간(60 · 80 · 90)은 데모용
+   · 전기안전지수 = 100 − 가장 높은 위험점수(문서 5.4 응답 예시), 위험점수는 소수 1자리(문서 5.4 응답 예시 8.6 · 2.1). 등급 구간(60 · 80 · 90)은 데모용
    · 실제 API 처럼 연계 대상 9대만(한길 · 건호이엔씨는 응답 없음 → 미수신) */
 
 const rnd = (a: number, b: number) => {
@@ -104,19 +104,19 @@ function safetyAt(s: DxSensor, t: number, now: number): DxSafety {
   const hoursAgo = (now - t) / 3600_000;
   const wave = Math.sin(t / 2_700_000 + i) * 0.9 + (rnd(i, Math.floor(t / 300_000)) - 0.5) * 0.6;
   const risks: DxSafety['risks'] = {
-    current: Math.round(4.5 + rnd(i, 21) * 3 + wave),
-    voltage: Math.round(1.5 + rnd(i, 22) * 2),
-    leakage: Math.round(0.5 + rnd(i, 23) * 2),
-    harmonic: Math.round(2 + rnd(i, 24) * 3),
-    temperature: Math.round(1 + sunAt(t) * 3),
-    powerQuality: sunAt(t) > 0.05 ? Math.round(1 + rnd(i, 25) * 2) : null,
+    current: r(4.5 + rnd(i, 21) * 3 + wave),
+    voltage: r(1.5 + rnd(i, 22) * 2),
+    leakage: r(0.5 + rnd(i, 23) * 2),
+    harmonic: r(2 + rnd(i, 24) * 3),
+    temperature: r(1 + sunAt(t) * 3),
+    powerQuality: sunAt(t) > 0.05 ? r(1 + rnd(i, 25) * 2) : null,
     arc: null, // 아크 지수 제공 전까지 null(문서 6.4)
     communication: 0,
   };
-  if (p.unbalance && hoursAgo < 3) risks.current = Math.round(11 + wave * 0.6);
-  if (p.leakage && hoursAgo < 6) risks.leakage = Math.round(28 + wave);
+  if (p.unbalance && hoursAgo < 3) risks.current = r(11 + wave * 0.6);
+  if (p.leakage && hoursAgo < 6) risks.leakage = r(28 + wave);
   const top = Math.max(...Object.entries(risks).filter(([k, v]) => k !== 'communication' && typeof v === 'number').map(([, v]) => v as number));
-  const index = 100 - top;
+  const index = r(100 - top);
   const level: RiskLevel = index < 60 ? 'warning' : index < 80 ? 'caution' : index < 90 ? 'watch' : 'normal';
   const ws = Math.floor(t / 300_000) * 300_000;
   return {

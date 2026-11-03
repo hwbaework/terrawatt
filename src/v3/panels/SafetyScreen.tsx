@@ -96,7 +96,7 @@ function worstSafety(xs: DxSafety[]) {
     .sort((a, b) => RISK_ORDER.indexOf(a.riskLevel) - RISK_ORDER.indexOf(b.riskLevel) || (a.safetyIndex ?? 101) - (b.safetyIndex ?? 101))[0];
 }
 
-/** 항목별 위험점수 0~100(정수) — 가장 높은 항목(지수를 낮춘 항목)은 amber(문서 6.2), 아크는 제공 전까지 미산출 */
+/** 항목별 위험점수 0~100, 소수 1자리(문서 5.4 응답 예시 8.6 · 2.1, 2026-11-03 사용자) — 가장 높은 항목(지수를 낮춘 항목)은 amber(문서 6.2), 아크는 제공 전까지 미산출 */
 function RiskLines({ sf }: { sf: DxSafety }) {
   const top = topRisk(sf);
   const late = isSafetyLate(sf);
@@ -104,7 +104,7 @@ function RiskLines({ sf }: { sf: DxSafety }) {
     <>
       {RISK_ITEMS.map((it) => {
         const v = sf.risks[it.key];
-        return <Line key={it.key} label={it.label} value={typeof v === 'number' ? fx(v, 0) : it.key === 'arc' ? '미산출' : null} hot={!late && top?.label === it.label} />;
+        return <Line key={it.key} label={it.label} value={typeof v === 'number' ? fx(v) : it.key === 'arc' ? '미산출' : null} hot={!late && top?.label === it.label} />;
       })}
     </>
   );

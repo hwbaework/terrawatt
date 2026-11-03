@@ -228,7 +228,7 @@ export const DT_SCREENS: DtScreen[] = [
         items: [
           { label: '전기안전지수', source: 'DX API-006 safetyIndex', period: '5분', status: 'waiting', note: '0~100' },
           { label: '등급', source: 'DX API-006 riskLevel', period: '5분', status: 'waiting', note: '5단계 danger/warning/caution/watch/normal (연계 v1.1)' },
-          { label: '항목별 위험점수', source: 'DX API-006 risks', period: '5분', status: 'waiting', note: '전류·전압·누설·고조파·온도·역률·아크, 0~100 정수' },
+          { label: '항목별 위험점수', source: 'DX API-006 risks', period: '5분', status: 'waiting', note: '전류·전압·누설·고조파·온도·역률·아크, 0~100 소수 1자리' },
           { label: '아크 지수', source: '아이티공간 아크 지수(문서 6.4)', status: 'waiting', note: '미산출' },
         ],
       },
