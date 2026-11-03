@@ -198,16 +198,11 @@ export function SafetyScreen({ plantCode }: { plantCode: number | undefined }) {
                 onToggle={() => setOpen(open === s.mac ? null : s.mac)}
               >
                 {sf ? (
-                  <>
-                    <ValueList>
-                      <Line label="전기안전지수" value={score} />
-                    </ValueList>
-                    <Note className="mb-1.5 mt-3">항목별 위험점수 (0~100, 높을수록 위험)</Note>
-                    <ValueList>
-                      <RiskLines sf={sf} />
-                      <Line label="산출 시각" value={hhmm(sf.diagnosedAt)} />
-                    </ValueList>
-                  </>
+                  <ValueList>
+                    <Line label="전기안전지수" value={score} />
+                    <RiskLines sf={sf} />
+                    <Line label="산출 시각" value={hhmm(sf.diagnosedAt)} />
+                  </ValueList>
                 ) : (
                   <Note>{target ? '-' : '미수신'}</Note>
                 )}
