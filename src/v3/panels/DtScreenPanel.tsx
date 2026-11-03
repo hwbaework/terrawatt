@@ -91,27 +91,6 @@ export function DtScreenPanel({
               버튼은 좌우로 나란히 (사용자 지시) — 셋이 되면서 좁아져 라벨은 재난 이름만 */}
           {screen.id === 'safety' && (
             <div className="px-5 py-3">
-              {/* 알람 테스트(2026-09-07 사용자 확정) — 설비(통신·전원) 알람은 발전소 상세의 설비 상태 클릭,
-                  나머지 2계열은 여기서 눌러 본다. 근거: 전기화재 위험 = ITS API-006 전기안전지수(아크·누전),
-                  태풍 = 기상청 기상특보. 실연동 시 이 버튼이 자동 감지(폴링)로 바뀐다 */}
-              <div className="mb-1.5 text-[12px] font-bold uppercase tracking-wider text-slate-500">알람 테스트</div>
-              <div className="mb-3 flex gap-2">
-                {(
-                  [
-                    ['전기화재 위험', 'safetyArc'],
-                    ['태풍경보', 'typhoon'],
-                  ] as const
-                ).map(([label, kind]) => (
-                  <button
-                    key={kind}
-                    type="button"
-                    onClick={() => onEvent(kind)}
-                    className="flex-1 rounded-lg bg-red-500/15 px-3 py-2.5 text-[12px] font-bold text-red-300 transition-colors hover:bg-red-500/25"
-                  >
-                    {label}
-                  </button>
-                ))}
-              </div>
               <div className="mb-1.5 text-[12px] font-bold uppercase tracking-wider text-slate-500">시뮬레이션</div>
               <div className="flex gap-2">
                 {(
